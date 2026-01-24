@@ -39,4 +39,4 @@ I chose this license specifically to ensure that this tool remains a shared comm
 4.  **No "Closed" Commercialization**: This prevents the logic from being locked away in a proprietary "Pro" version without contributing to the open-source original.
 
 ---
-*Created with the philosophy that utility should never be sacrificed for simulation.*
+*Created with the philosophy that utility should never be sacrificed.*
