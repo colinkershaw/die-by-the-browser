@@ -1,0 +1,9 @@
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+.idea/.gitignore
+.idea/workspace.xml
+.idea/shelf/
+ClaudeV*.html
+GeminiV*.html
