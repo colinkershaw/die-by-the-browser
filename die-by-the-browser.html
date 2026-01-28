@@ -1,0 +1,1399 @@
+<!--
+Die! By the Browser (DiceApp)
+Copyright (C) 2026 Colin Kershaw (https://github.com/colinkershaw)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--suppress HtmlWrongAttributeValue -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <!--suppress HtmlWrongAttributeValue -->
+    <meta http-equiv="Pragma" content="no-cache">
+    <!--suppress HtmlWrongAttributeValue -->
+    <meta http-equiv="Expires" content="0">
+    <title>Die! By the Browser (Dice Rolling App)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 30px;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            gap: 10px;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            font-size: 2em;
+            flex: 1;
+            margin: 0;
+        }
+
+        .hamburger {
+            width: 30px;
+            height: 30px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            padding: 4px;
+            border-radius: 6px;
+            transition: background 0.3s;
+            flex-shrink: 0;
+            flex-grow: 0;
+            flex-basis: 30px;
+        }
+
+        .hamburger:hover {
+            background: #f0f0f0;
+        }
+
+        .hamburger span {
+            width: 20px;
+            height: 2px;
+            background: #667eea;
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+
+        .menu {
+            position: absolute;
+            top: 70px;
+            right: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            min-width: 200px;
+            display: none;
+            z-index: 1000;
+        }
+
+        /*noinspection CssUnusedSymbol*/
+        .menu.active {
+            display: block;
+        }
+
+        .menu-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .menu-item:hover {
+            background: #f0f0f0;
+        }
+
+        /*noinspection CssUnusedSymbol*/
+        .menu-item.active {
+            background: #e6eaff;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .menu-label {
+            font-size: 0.95em;
+        }
+
+        .menu-check {
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .input-section {
+            margin-bottom: 20px;
+        }
+
+        #diceInput {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2em;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #diceInput:focus {
+            border-color: #764ba2;
+        }
+
+        #diceDisplay {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2em;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            min-height: 52px;
+            background: white;
+            display: none;
+            cursor: text;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        /*noinspection CssUnusedSymbol*/
+        #diceDisplay.active {
+            display: block;
+        }
+
+        #diceDisplay.empty {
+            color: #999;
+        }
+
+        #diceDisplay.empty::before {
+            content: var(--placeholder-text);
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #667eea;
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 50% {
+                opacity: 1;
+            }
+            51%, 100% {
+                opacity: 0;
+            }
+        }
+
+        .keypad {
+            display: none;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        /*noinspection CssUnusedSymbol*/
+        .keypad.active {
+            display: grid;
+        }
+
+        .key {
+            padding: 20px;
+            font-size: 1.5em;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .key:hover {
+            background: #e0e0e0;
+            transform: scale(1.05);
+        }
+
+        .key:active {
+            transform: scale(0.95);
+        }
+
+        .key.special {
+            background: #667eea;
+            color: white;
+        }
+
+        .key.special:hover {
+            background: #5568d3;
+        }
+
+        .key.delete {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .key.delete:hover {
+            background: #c0392b;
+        }
+
+        .key.nav {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .key.nav:hover {
+            background: #7f8c8d;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        #rollBtn {
+            background: #667eea;
+            color: white;
+        }
+
+        #rollBtn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #clearBtn {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        #clearBtn:hover {
+            background: #e0e0e0;
+        }
+
+        .results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 100px;
+        }
+
+        .result-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .result-formula {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .result-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .result-rolls {
+            font-size: 0.95em;
+            color: #3A3AB1;
+            margin-top: 8px;
+            font-family: 'Courier New', monospace;
+            background: #f0f4ff;
+            padding: 8px;
+            border-radius: 5px;
+        }
+
+        .result-range {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            padding: 10px;
+            background: #ffe6e6;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        body.force-keypad #diceInput {
+            display: none !important;
+        }
+
+        body.force-keypad #diceDisplay {
+            display: block !important;
+        }
+
+        body.force-keypad .keypad {
+            display: grid !important;
+        }
+
+        body.force-keyboard #diceInput {
+            display: block !important;
+        }
+
+        body.force-keyboard #diceDisplay {
+            display: none !important;
+        }
+
+        body.force-keyboard .keypad {
+            display: none !important;
+        }
+
+        /*noinspection CssUnusedSymbol*/
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            body:not(.force-keyboard) .keypad {
+                display: grid;
+            }
+
+            body:not(.force-keyboard) #diceInput {
+                display: none;
+            }
+
+            body:not(.force-keyboard) #diceDisplay {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🎲 Die! By the Browser</h1>
+        <button class="hamburger" id="hamburger" aria-label="Menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </div>
+
+    <div class="menu" id="menu">
+        <div class="menu-item" data-mode="auto">
+            <span class="menu-label">Auto (Responsive)</span>
+            <span class="menu-check">✓</span>
+        </div>
+        <div class="menu-item" data-mode="keyboard">
+            <span class="menu-label">External Keyboard</span>
+            <span class="menu-check">✓</span>
+        </div>
+        <div class="menu-item" data-mode="keypad">
+            <span class="menu-label">Onscreen Keypad</span>
+            <span class="menu-check">✓</span>
+        </div>
+    </div>
+
+    <div class="input-section">
+        <input type="text" id="diceInput" autocomplete="off" aria-label="Dice notation input">
+        <div id="diceDisplay" class="empty"></div>
+    </div>
+
+    <div class="keypad" id="keypad">
+        <button class="key" data-value="1">1</button>
+        <button class="key" data-value="2">2</button>
+        <button class="key" data-value="3">3</button>
+        <button class="key" data-value="4">4</button>
+        <button class="key" data-value="5">5</button>
+        <button class="key" data-value="6">6</button>
+        <button class="key" data-value="7">7</button>
+        <button class="key" data-value="8">8</button>
+        <button class="key" data-value="9">9</button>
+        <button class="key special" data-value="d">d</button>
+        <button class="key" data-value="0">0</button>
+        <button class="key special" data-value=" ">␣</button>
+        <button class="key nav" data-action="ArrowLeft">←</button>
+        <button class="key delete" data-action="Backspace">⌫</button>
+        <button class="key nav" data-action="ArrowRight">→</button>
+    </div>
+
+    <div class="button-group">
+        <button id="rollBtn">Roll Dice</button>
+        <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="results" id="results"></div>
+</div>
+
+<script>
+
+  /**
+   * DiceApp (Die! By the Browser) | Copyright (C) 2026 Colin Kershaw
+   * Licensed under GNU AGPLv3 (See file header for full notice).
+   * A dice rolling application with keyboard and keypad support.
+   * Organized using the namespace pattern for clean separation of concerns.
+   */
+  const DiceApp = {
+    // Configuration
+    PLACEHOLDER_TEXT: "e.g., 3d6 4d12 (# of dice + 'd' + die size)",
+
+    // State management
+    state: {
+      currentValue: '',
+      cursorPosition: 0,
+      mode: 'auto' // 'auto', 'keyboard', or 'keypad'
+    },
+
+    // DOM element cache
+    nodes: {},
+
+    // Utility functions (pure logic, no side effects)
+    utils: {
+      /**
+       * Parse dice notation string into structured data
+       * @param {string} input - Notation like "3d6 4d12"
+       * @returns {Array|null} Array of {count, sides} objects or null if invalid
+       */
+      parse(input) {
+        if (!input || typeof input !== 'string') return null;
+
+        const trimmed = input.trim();
+        if (!trimmed) return null;
+
+        const parts = trimmed.split(/\s+/);
+        const results = [];
+
+        for (const part of parts) {
+          const match = part.match(/^(\d+)d(\d+)$/i);
+          if (!match) return null;
+
+          const count = parseInt(match[1], 10);
+          const sides = parseInt(match[2], 10);
+
+          if (count <= 0 || sides <= 0) return null;
+
+          results.push({count, sides});
+        }
+
+        return results.length > 0 ? results : null;
+      },
+
+      /**
+       * Roll multiple dice and return individual results
+       * @param {number} count - Number of dice
+       * @param {number} sides - Sides per die
+       * @returns {Array} Individual roll results
+       */
+      roll(count, sides) {
+        const rolls = [];
+        for (let i = 0; i < count; i++) {
+          rolls.push(Math.floor(Math.random() * sides) + 1);
+        }
+        return rolls;
+      },
+
+      /**
+       * Get query parameter from URL hash
+       * @param {string} param - Parameter name
+       * @returns {string|null}
+       */
+      getQueryParam(param) {
+        const hash = window.location.hash.slice(1); // Remove #
+        const params = new URLSearchParams(hash);
+        return params.get(param);
+      },
+
+      /**
+       * Update URL hash parameter (only if there's actual content)
+       * @param {string} param - Parameter name
+       * @param {string} value - Parameter value
+       */
+      setQueryParam(param, value) {
+        const hash = window.location.hash.slice(1);
+        const params = new URLSearchParams(hash);
+
+        if (value) {
+          params.set(param, value);
+          window.location.hash = '#' + params.toString();
+        } else {
+          params.delete(param);
+          const newHash = params.toString();
+          // Only set hash if there are other params, otherwise remove it entirely
+          if (newHash) {
+            window.location.hash = '#' + newHash;
+          } else {
+            // Remove the hash completely
+            history.replaceState(null, null, ' ');
+          }
+        }
+      }
+    },
+
+    // UI helper methods
+    ui: {
+      /**
+       * Check if device should use keypad mode
+       * @returns {boolean}
+       */
+      isKeypadMode() {
+        const {state} = DiceApp;
+        if (state.mode === 'keypad') return true;
+        if (state.mode === 'keyboard') return false;
+        return window.innerWidth <= 600;
+      },
+
+      /**
+       * Update the display div with current value and cursor position
+       */
+      updateDisplay() {
+        const {state, nodes} = DiceApp;
+
+        if (this.isKeypadMode()) {
+          if (state.currentValue === '') {
+            nodes.display.classList.add('empty');
+            nodes.display.innerHTML = '';
+            state.cursorPosition = 0;
+          } else {
+            nodes.display.classList.remove('empty');
+            const before = state.currentValue.slice(0, state.cursorPosition);
+            const after = state.currentValue.slice(state.cursorPosition);
+            nodes.display.innerHTML = `${before}<span class="cursor"></span>${after}`;
+          }
+        }
+      },
+
+      /**
+       * Update visibility of keypad and display based on mode
+       */
+      refreshView() {
+        const {nodes, state} = DiceApp;
+        const isKeypad = this.isKeypadMode();
+
+        // Update body class for forced modes
+        document.body.classList.remove('force-keypad', 'force-keyboard');
+        if (state.mode === 'keypad') {
+          document.body.classList.add('force-keypad');
+        } else if (state.mode === 'keyboard') {
+          document.body.classList.add('force-keyboard');
+        }
+
+        nodes.keypad.classList.toggle('active', isKeypad);
+        nodes.display.classList.toggle('active', isKeypad);
+
+        // Sync state when switching modes
+        if (isKeypad) {
+          state.currentValue = nodes.input.value;
+          state.cursorPosition = state.currentValue.length;
+        } else {
+          nodes.input.value = state.currentValue;
+        }
+
+        this.updateDisplay();
+      },
+
+      /**
+       * Get current input value from appropriate source
+       * @returns {string}
+       */
+      getValue() {
+        return this.isKeypadMode() ? DiceApp.state.currentValue : DiceApp.nodes.input.value;
+      },
+
+      /**
+       * Set input value in appropriate location
+       * @param {string} val
+       */
+      setValue(val) {
+        if (this.isKeypadMode()) {
+          DiceApp.state.currentValue = val;
+          DiceApp.state.cursorPosition = val.length;
+          this.updateDisplay();
+        } else {
+          DiceApp.nodes.input.value = val;
+        }
+      },
+
+      /**
+       * Update menu to show current mode
+       */
+      updateMenu() {
+        const {state, nodes} = DiceApp;
+        const menuItems = nodes.menu.querySelectorAll('.menu-item');
+
+        menuItems.forEach(item => {
+          const mode = item.dataset.mode;
+          const check = item.querySelector('.menu-check');
+
+          if (mode === state.mode) {
+            item.classList.add('active');
+            check.style.display = 'block';
+          } else {
+            item.classList.remove('active');
+            check.style.display = 'none';
+          }
+        });
+      },
+
+      /**
+       * Toggle menu visibility
+       */
+      toggleMenu() {
+        DiceApp.nodes.menu.classList.toggle('active');
+      },
+
+      /**
+       * Close menu
+       */
+      closeMenu() {
+        DiceApp.nodes.menu.classList.remove('active');
+      }
+    },
+
+    // Core application actions
+    actions: {
+      /**
+       * Perform dice roll and display results
+       */
+      roll() {
+        const {nodes, utils, ui} = DiceApp;
+        const notation = ui.getValue();
+        const parsed = utils.parse(notation);
+
+        if (!parsed) {
+          nodes.results.innerHTML = '<div class="error">Invalid dice notation. Use format like "3d6 4d12"</div>';
+          return;
+        }
+
+        // Update URL with current dice configuration
+        utils.setQueryParam('dice', notation);
+
+        const rollResults = parsed.map(({count, sides}) => {
+          const rolls = utils.roll(count, sides);
+          const total = rolls.reduce((sum, val) => sum + val, 0);
+          return {
+            formula: `${count}d${sides}`,
+            rolls,
+            total,
+            min: count,
+            max: count * sides
+          };
+        });
+
+        nodes.results.innerHTML = rollResults.map(r => `
+        <div class="result-item">
+          <div class="result-formula">${r.formula}</div>
+          <div class="result-value">Total: ${r.total}</div>
+          <div class="result-rolls">Rolls: ${r.rolls.join(' ')}</div>
+          <div class="result-range">Range: ${r.min}–${r.max}</div>
+        </div>
+      `).join('');
+      },
+
+      /**
+       * Clear all inputs and results
+       */
+      clear() {
+        const {ui, nodes, utils} = DiceApp;
+        ui.setValue('');
+        nodes.results.innerHTML = '';
+        // Use setTimeout to ensure DOM updates before hash changes
+        setTimeout(() => {
+          utils.setQueryParam('dice', '');
+        }, 0);
+        if (!ui.isKeypadMode()) {
+          nodes.input.focus();
+        }
+      },
+
+      /**
+       * Set display mode
+       * @param {string} mode - 'auto', 'keyboard', or 'keypad'
+       */
+      setMode(mode) {
+        DiceApp.state.mode = mode;
+        DiceApp.ui.refreshView();
+        DiceApp.ui.updateMenu();
+        DiceApp.ui.closeMenu();
+      }
+    },
+
+    // Event handlers
+    handlers: {
+      /**
+       * Insert a character at the current cursor position
+       * @param {string} char
+       */
+      insertAtCursor(char) {
+        const {state, ui} = DiceApp;
+        state.currentValue = state.currentValue.slice(0, state.cursorPosition) +
+          char +
+          state.currentValue.slice(state.cursorPosition);
+        state.cursorPosition++;
+        ui.updateDisplay();
+      },
+
+      /**
+       * Delete character before the current cursor position
+       */
+      deleteAtCursor() {
+        const {state, ui} = DiceApp;
+        if (state.cursorPosition > 0) {
+          state.currentValue = state.currentValue.slice(0, state.cursorPosition - 1) +
+            state.currentValue.slice(state.cursorPosition);
+          state.cursorPosition--;
+          ui.updateDisplay();
+        }
+      },
+
+      /**
+       * Move cursor by delta
+       * @param {number} delta
+       */
+      moveCursor(delta) {
+        const {state, ui} = DiceApp;
+        const newPos = state.cursorPosition + delta;
+        if (newPos >= 0 && newPos <= state.currentValue.length) {
+          state.cursorPosition = newPos;
+          ui.updateDisplay();
+        }
+      },
+
+      /**
+       * A mapping of keys to their respective handler functions
+       * Initialized with static keys; numbers added dynamically
+       */
+      keyMap: {},
+
+      /**
+       * Initialize keyMap with all key mappings
+       */
+      initializeKeyMap() {
+        // Static key mappings
+        this.keyMap['Backspace'] = () => DiceApp.handlers.deleteAtCursor();
+        this.keyMap['ArrowLeft'] = () => DiceApp.handlers.moveCursor(-1);
+        this.keyMap['ArrowRight'] = () => DiceApp.handlers.moveCursor(1);
+        this.keyMap[' '] = () => DiceApp.handlers.insertAtCursor(' ');
+        this.keyMap['d'] = () => DiceApp.handlers.insertAtCursor('d');
+        this.keyMap['D'] = () => DiceApp.handlers.insertAtCursor('d');
+
+        // Dynamic number key mappings (0-9)
+        for (let i = 0; i <= 9; i++) {
+          const digit = i.toString();
+          this.keyMap[digit] = () => DiceApp.handlers.insertAtCursor(digit);
+        }
+      },
+
+      /**
+       * Handle keypad button clicks
+       */
+      onKeypadClick(e) {
+        if (!e.target.classList.contains('key')) return;
+
+        const {action, value} = e.target.dataset;
+
+        // Check if action maps to a key in keyMap
+        if (action && this.keyMap[action]) {
+          this.keyMap[action]();
+        } else if (value !== undefined) {
+          this.insertAtCursor(value);
+        }
+      },
+
+      /**
+       * Handle keyboard input globally (works in both modes)
+       */
+      onKeyDownGlobal(e) {
+        const {ui, actions} = DiceApp;
+
+        // Global shortcuts (work in both modes)
+        if (e.key === 'Escape') {
+          actions.clear();
+          return;
+        }
+
+        if (e.key === 'Enter') {
+          actions.roll();
+          return;
+        }
+
+        // Keypad mode keyboard support
+        if (ui.isKeypadMode()) {
+          // Don't intercept browser shortcuts (Alt+D, Ctrl+L, etc.)
+          if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+          // Check if key is mapped
+          const mapped = this.keyMap[e.key];
+          if (mapped) {
+            e.preventDefault();
+            mapped();
+          }
+        }
+      },
+
+      /**
+       * Handle menu item clicks
+       */
+      onMenuClick(e) {
+        const menuItem = e.target.closest('.menu-item');
+        if (!menuItem) return;
+
+        const mode = menuItem.dataset.mode;
+        DiceApp.actions.setMode(mode);
+      },
+
+      /**
+       * Close menu when clicking outside
+       */
+      onDocumentClick(e) {
+        const {nodes} = DiceApp;
+        if (!nodes.menu.contains(e.target) &&
+          !nodes.hamburger.contains(e.target) &&
+          nodes.menu.classList.contains('active')) {
+          DiceApp.ui.closeMenu();
+        }
+      }
+    },
+
+    // Test suite
+    tests: {
+      /**
+       * Run all tests and log results
+       * @returns {Promise<boolean>} True if all tests pass
+       */
+      async run() {
+        const testCases = [
+          {
+            name: "Parse single dice roll",
+            input: "3d6",
+            expected: [{count: 3, sides: 6}]
+          },
+          {
+            name: "Parse multiple dice rolls",
+            input: "3d6 4d12",
+            expected: [{count: 3, sides: 6}, {count: 4, sides: 12}]
+          },
+          {
+            name: "Parse with extra spaces",
+            input: "3d6  4d12",
+            expected: [{count: 3, sides: 6}, {count: 4, sides: 12}]
+          },
+          {
+            name: "Handle single die",
+            input: "1d20",
+            expected: [{count: 1, sides: 20}]
+          },
+          {
+            name: "Handle large numbers",
+            input: "10d100",
+            expected: [{count: 10, sides: 100}]
+          },
+          {
+            name: "Reject invalid format - missing d",
+            input: "3-6",
+            expected: null
+          },
+          {
+            name: "Reject invalid format - letters",
+            input: "3dx",
+            expected: null
+          },
+          {
+            name: "Reject zero dice",
+            input: "0d6",
+            expected: null
+          },
+          {
+            name: "Reject zero-sided die",
+            input: "3d0",
+            expected: null
+          },
+          {
+            name: "Keyboard and Keypad inputs stay in sync - Keyboard to Keypad",
+            input: null,
+            test: () => {
+              DiceApp.actions.setMode('keyboard');
+              DiceApp.nodes.input.value = '2d8 1d20';
+              DiceApp.actions.setMode('keypad');
+              return DiceApp.state.currentValue === '2d8 1d20';
+            }
+          },
+          {
+            name: "Keyboard and Keypad inputs stay in sync - Keypad to Keyboard",
+            input: null,
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              DiceApp.state.currentValue = '5d6 3d4';
+              DiceApp.state.cursorPosition = DiceApp.state.currentValue.length;
+              DiceApp.actions.setMode('keyboard');
+              return DiceApp.nodes.input.value === '5d6 3d4';
+            }
+          },
+          {
+            name: "URL hash is set on roll",
+            input: null,
+            test: () => {
+              DiceApp.ui.setValue('1d6');
+              DiceApp.actions.roll();
+              const hash = window.location.hash.slice(1);
+              const params = new URLSearchParams(hash);
+              return params.get('dice') === '1d6';
+            }
+          },
+          {
+            name: "URL hash is cleared on clear",
+            input: null,
+            async: true,
+            test: async () => {
+              DiceApp.ui.setValue('1d6');
+              DiceApp.actions.roll();
+              DiceApp.actions.clear();
+              // Wait for setTimeout in clear() to complete
+              await new Promise(resolve => setTimeout(resolve, 10));
+              const hash = window.location.hash.slice(1);
+              const params = new URLSearchParams(hash);
+              return params.get('dice') === null;
+            }
+          },
+          {
+            name: "Insert at cursor",
+            test: () => {
+              DiceApp.state.currentValue = '1d6';
+              DiceApp.state.cursorPosition = 2;
+              DiceApp.handlers.insertAtCursor('0');
+              return DiceApp.state.currentValue === '1d06' && DiceApp.state.cursorPosition === 3;
+            }
+          },
+          {
+            name: "Delete at cursor",
+            test: () => {
+              DiceApp.state.currentValue = '1d20';
+              DiceApp.state.cursorPosition = 2;
+              DiceApp.handlers.deleteAtCursor();
+              return DiceApp.state.currentValue === '120' && DiceApp.state.cursorPosition === 1;
+            }
+          },
+          {
+            name: "Move cursor",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 1;
+              DiceApp.handlers.moveCursor(1);
+              const right = DiceApp.state.cursorPosition === 2;
+              DiceApp.handlers.moveCursor(-2);
+              const left = DiceApp.state.cursorPosition === 0;
+              return right && left;
+            }
+          },
+          {
+            name: "KeyMap handles numbers",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              DiceApp.state.currentValue = '';
+              DiceApp.state.cursorPosition = 0;
+              DiceApp.handlers.keyMap['5']();
+              return DiceApp.state.currentValue === '5' && DiceApp.state.cursorPosition === 1;
+            }
+          },
+          {
+            name: "KeyMap handles backspace",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              DiceApp.handlers.keyMap['Backspace']();
+              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
+            }
+          },
+          {
+            name: "KeyMap handles 'd' key",
+            test: () => {
+              DiceApp.state.currentValue = '3';
+              DiceApp.state.cursorPosition = 1;
+              DiceApp.handlers.keyMap['d']();
+              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
+            }
+          },
+          {
+            name: "KeyMap handles space",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              DiceApp.handlers.keyMap[' ']();
+              return DiceApp.state.currentValue === '3d6 ' && DiceApp.state.cursorPosition === 4;
+            }
+          },
+          {
+            name: "KeyMap handles ArrowLeft",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              DiceApp.handlers.keyMap['ArrowLeft']();
+              return DiceApp.state.cursorPosition === 2;
+            }
+          },
+          {
+            name: "KeyMap handles ArrowRight",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 0;
+              DiceApp.handlers.keyMap['ArrowRight']();
+              return DiceApp.state.cursorPosition === 1;
+            }
+          },
+          {
+            name: "Keypad click - number button",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              DiceApp.state.currentValue = '';
+              DiceApp.state.cursorPosition = 0;
+              const fakeEvent = {
+                target: {
+                  classList: {contains: () => true},
+                  dataset: {value: '7'}
+                }
+              };
+              DiceApp.handlers.onKeypadClick(fakeEvent);
+              return DiceApp.state.currentValue === '7' && DiceApp.state.cursorPosition === 1;
+            }
+          },
+          {
+            name: "Keypad click - 'd' button",
+            test: () => {
+              DiceApp.state.currentValue = '3';
+              DiceApp.state.cursorPosition = 1;
+              const fakeEvent = {
+                target: {
+                  classList: {contains: () => true},
+                  dataset: {value: 'd'}
+                }
+              };
+              DiceApp.handlers.onKeypadClick(fakeEvent);
+              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
+            }
+          },
+          {
+            name: "Keypad click - space button",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              const fakeEvent = {
+                target: {
+                  classList: {contains: () => true},
+                  dataset: {value: ' '}
+                }
+              };
+              DiceApp.handlers.onKeypadClick(fakeEvent);
+              return DiceApp.state.currentValue === '3d6 ' && DiceApp.state.cursorPosition === 4;
+            }
+          },
+          {
+            name: "Keypad click - backspace action",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              const fakeEvent = {
+                target: {
+                  classList: {contains: () => true},
+                  dataset: {action: 'Backspace'}
+                }
+              };
+              DiceApp.handlers.onKeypadClick(fakeEvent);
+              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
+            }
+          },
+          {
+            name: "Keypad click - ArrowLeft action",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              const fakeEvent = {
+                target: {
+                  classList: {contains: () => true},
+                  dataset: {action: 'ArrowLeft'}
+                }
+              };
+              DiceApp.handlers.onKeypadClick(fakeEvent);
+              return DiceApp.state.cursorPosition === 2;
+            }
+          },
+          {
+            name: "Keypad click - ArrowRight action",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 0;
+              const fakeEvent = {
+                target: {
+                  classList: {contains: () => true},
+                  dataset: {action: 'ArrowRight'}
+                }
+              };
+              DiceApp.handlers.onKeypadClick(fakeEvent);
+              return DiceApp.state.cursorPosition === 1;
+            }
+          },
+          {
+            name: "Keypad click ignores non-key elements",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              const fakeEvent = {
+                target: {
+                  classList: {contains: () => false},
+                  dataset: {value: '9'}
+                }
+              };
+              DiceApp.handlers.onKeypadClick(fakeEvent);
+              // Should not change anything
+              return DiceApp.state.currentValue === '3d6' && DiceApp.state.cursorPosition === 3;
+            }
+          },
+          {
+            name: "Keyboard event in keypad mode - digit",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              DiceApp.state.currentValue = '';
+              DiceApp.state.cursorPosition = 0;
+              const fakeEvent = {
+                key: '4',
+                altKey: false,
+                ctrlKey: false,
+                metaKey: false,
+                preventDefault: () => {
+                }
+              };
+              DiceApp.handlers.onKeyDownGlobal(fakeEvent);
+              return DiceApp.state.currentValue === '4' && DiceApp.state.cursorPosition === 1;
+            }
+          },
+          {
+            name: "Keyboard event ignores browser shortcuts in keypad mode",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              DiceApp.state.currentValue = '';
+              DiceApp.state.cursorPosition = 0;
+              const fakeEvent = {
+                key: 'd',
+                altKey: true,
+                ctrlKey: false,
+                metaKey: false,
+                preventDefault: () => {
+                }
+              };
+              DiceApp.handlers.onKeyDownGlobal(fakeEvent);
+              // Should not insert 'd' because Alt is pressed
+              return DiceApp.state.currentValue === '' && DiceApp.state.cursorPosition === 0;
+            }
+          }
+        ];
+
+        let passed = 0;
+        let failed = 0;
+
+        console.log('🎲 Running DiceApp Tests...\n');
+
+        for (const test of testCases) {
+          // SAVE STATE before each test (deep copy where needed)
+          const savedState = {
+            currentValue: DiceApp.state.currentValue,
+            cursorPosition: DiceApp.state.cursorPosition,
+            mode: DiceApp.state.mode,
+            inputValue: DiceApp.nodes.input.value,
+            displayHTML: DiceApp.nodes.display.innerHTML,
+            displayClasses: DiceApp.nodes.display.className,
+            resultsHTML: DiceApp.nodes.results.innerHTML,
+            hash: window.location.hash,
+            bodyClasses: document.body.className
+          };
+
+          try {
+            let result, match;
+
+            if (test.test) {
+              // Custom test function (might be async)
+              if (test.async) {
+                result = await test.test();
+              } else {
+                result = test.test();
+              }
+              match = result === true;
+            } else {
+              // Parse test
+              result = DiceApp.utils.parse(test.input);
+              match = JSON.stringify(result) === JSON.stringify(test.expected);
+            }
+
+            if (match) {
+              passed++;
+              console.log(`✓ ${test.name}`);
+            } else {
+              failed++;
+              console.error(`✗ ${test.name}`);
+              if (test.expected !== undefined) {
+                console.error(`  Expected: ${JSON.stringify(test.expected)}`);
+                console.error(`  Got: ${JSON.stringify(result)}`);
+              } else {
+                console.error(`  Test returned: ${result}`);
+              }
+            }
+          } catch (e) {
+            failed++;
+            console.error(`✗ ${test.name} - Exception: ${e.message}`);
+          } finally {
+            // RESTORE STATE after each test - be thorough
+            DiceApp.state.currentValue = savedState.currentValue;
+            DiceApp.state.cursorPosition = savedState.cursorPosition;
+            DiceApp.state.mode = savedState.mode;
+            DiceApp.nodes.input.value = savedState.inputValue;
+            DiceApp.nodes.display.innerHTML = savedState.displayHTML;
+            DiceApp.nodes.display.className = savedState.displayClasses;
+            DiceApp.nodes.results.innerHTML = savedState.resultsHTML;
+            document.body.className = savedState.bodyClasses;
+
+            // Restore hash carefully
+            if (window.location.hash !== savedState.hash) {
+              if (savedState.hash) {
+                window.location.hash = savedState.hash;
+              } else if (!savedState.currentValue) {
+                // Only clear hash if there was no content originally
+                history.replaceState(null, null, ' ');
+              }
+            }
+
+            // Force UI refresh to match restored state
+            DiceApp.ui.refreshView();
+            DiceApp.ui.updateMenu();
+          }
+        }
+
+        console.log(`\n📊 Tests: ${passed} passed, ${failed} failed`);
+        return failed === 0;
+      }
+    },
+
+    // Setup and Initialization
+    setup: {
+      init() {
+        this.cacheDomElements();
+        this.setPlaceholderText();
+        this.loadInitialConfig();
+        DiceApp.handlers.initializeKeyMap();
+        this.bindEvents();
+        this.initializeUI();
+
+        console.log('🎲 DiceApp initialized successfully!');
+        console.log('💡 To run tests, call: DiceApp.tests.run()');
+      },
+
+      cacheDomElements() {
+        DiceApp.nodes = {
+          input: document.getElementById('diceInput'),
+          display: document.getElementById('diceDisplay'),
+          keypad: document.getElementById('keypad'),
+          rollBtn: document.getElementById('rollBtn'),
+          clearBtn: document.getElementById('clearBtn'),
+          results: document.getElementById('results'),
+          hamburger: document.getElementById('hamburger'),
+          menu: document.getElementById('menu')
+        };
+      },
+
+      setPlaceholderText() {
+        document.documentElement.style.setProperty('--placeholder-text', `"${DiceApp.PLACEHOLDER_TEXT}"`);
+        DiceApp.nodes.input.placeholder = DiceApp.PLACEHOLDER_TEXT;
+      },
+
+      loadInitialConfig() {
+        const diceFromUrl = DiceApp.utils.getQueryParam('dice');
+        if (diceFromUrl) {
+          DiceApp.state.currentValue = diceFromUrl;
+          DiceApp.state.cursorPosition = diceFromUrl.length;
+          DiceApp.nodes.input.value = diceFromUrl;
+        }
+      },
+
+      bindEvents() {
+        DiceApp.nodes.keypad.addEventListener('click', (e) => DiceApp.handlers.onKeypadClick(e));
+        DiceApp.nodes.rollBtn.addEventListener('click', () => DiceApp.actions.roll());
+        DiceApp.nodes.clearBtn.addEventListener('click', () => DiceApp.actions.clear());
+        DiceApp.nodes.hamburger.addEventListener('click', () => DiceApp.ui.toggleMenu());
+        DiceApp.nodes.menu.addEventListener('click', (e) => DiceApp.handlers.onMenuClick(e));
+        window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
+        window.addEventListener('resize', () => DiceApp.ui.refreshView());
+        document.addEventListener('click', (e) => DiceApp.handlers.onDocumentClick(e));
+
+        window.addEventListener('hashchange', () => {
+          const diceConfig = DiceApp.utils.getQueryParam('dice');
+          if (diceConfig && diceConfig !== DiceApp.ui.getValue()) {
+            DiceApp.ui.setValue(diceConfig);
+          }
+        });
+      },
+
+      initializeUI() {
+        DiceApp.ui.refreshView();
+        DiceApp.ui.updateMenu();
+        if (!DiceApp.ui.isKeypadMode()) {
+          DiceApp.nodes.input.focus();
+        }
+      }
+    }
+  };
+
+  // Start the application
+  DiceApp.setup.init();
+
+</script>
+</body>
+</html>
