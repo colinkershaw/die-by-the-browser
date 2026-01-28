@@ -20,8 +20,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--suppress HtmlWrongAttributeValue -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <!--suppress HtmlWrongAttributeValue -->
     <meta http-equiv="Pragma" content="no-cache">
+    <!--suppress HtmlWrongAttributeValue -->
     <meta http-equiv="Expires" content="0">
     <title>Die! By the Browser (Dice Rolling App)</title>
     <style>
@@ -390,6 +393,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             display: none !important;
         }
 
+        /*noinspection CssUnusedSymbol*/
         @media (max-width: 600px) {
             .container {
                 padding: 20px;
@@ -440,7 +444,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     </div>
 
     <div class="input-section">
-        <input type="text" id="diceInput" autocomplete="off">
+        <input type="text" id="diceInput" autocomplete="off" aria-label="Dice notation input">
         <div id="diceDisplay" class="empty"></div>
     </div>
 
