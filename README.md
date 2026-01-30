@@ -7,7 +7,7 @@ A free (in all senses), lightweight, zero-dependency, single-file web utility de
 
 ## 🚀 The Vision: Why this exists
 
-**Die! By the Browser** was born from a vision of a "simple HTML app" that solves the "Input Velocity" problem. By utilizing a custom-built virtual keypad designed specifically for dice notation on small touchscreen devices, it acts like a calculator for your tabletop sessions — getting you the results as fast as your thumbs can move.
+**Die! By the Browser** was born from a vision of a "simple HTML app" that solves the "Input Velocity" problem. By utilizing a custom-built virtual keypad designed specifically for dice notation on small touchscreen devices, it acts like a calculator for your tabletop sessions — getting you the results as fast as your thumbs can move. Physical keyboards are also supported for maximum utility.  
 
 ## ✨ Key Features
 
