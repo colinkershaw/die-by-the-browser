@@ -5,9 +5,12 @@
 // Generate screenshots: npx playwright test --update-snapshots
 
 import {test, expect} from '@playwright/test';
+import {dirname, resolve} from 'path';
+import {fileURLToPath} from 'url';
 
 // Configuration
-const APP_URL = 'file:///C:/Users/ck/Projects/WebStorm/die-by-the-browser/die-by-the-browser.html'; // Update this path
+const testDir = dirname(fileURLToPath(import.meta.url));
+const APP_URL = `file://${resolve(testDir, '../die-by-the-browser.html')}`;
 const DESKTOP_VIEWPORT = {width: 1280, height: 720};
 const MOBILE_VIEWPORT = {width: 400, height: 900};
 
@@ -32,7 +35,7 @@ test.describe('DiceApp - Desktop Mode', () => {
 
   test('should display desktop text input by default', async ({page}) => {
     const textInput = page.locator('#diceInput');
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const keypad = page.locator('#keypad');
 
     await expect(textInput).toBeVisible();
@@ -148,7 +151,7 @@ test.describe('DiceApp - Mobile Mode', () => {
 
   test('should display keypad by default on mobile', async ({page}) => {
     const textInput = page.locator('#diceInput');
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const keypad = page.locator('#keypad');
 
     await expect(textInput).not.toBeVisible();
@@ -157,7 +160,7 @@ test.describe('DiceApp - Mobile Mode', () => {
   });
 
   test('should show placeholder in empty display', async ({page}) => {
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     await expect(display).toHaveClass(/empty/);
   });
 
@@ -166,7 +169,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     await page.click('button[data-value="d"]');
     await page.click('button[data-value="6"]');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('3d6');
   });
@@ -187,7 +190,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     await page.click('button[data-value="d"]');
     await page.click('button[data-value="8"]');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('3d6 2d8');
   });
@@ -198,7 +201,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     await page.click('button[data-value="6"]');
     await page.click('button[data-action="Backspace"]');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('3d');
   });
@@ -215,7 +218,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     // Insert in middle
     await page.click('button[data-value="0"]');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('30d6');
   });
@@ -237,7 +240,7 @@ test.describe('DiceApp - Mobile Mode', () => {
   test('should support physical keyboard in keypad mode', async ({page}) => {
     await page.keyboard.type('4d12');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('4d12');
   });
@@ -248,7 +251,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.type('0');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('30d6');
   });
@@ -257,7 +260,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     await page.keyboard.type('3d66');
     await page.keyboard.press('Backspace');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('3d6');
   });
@@ -268,7 +271,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     // This should NOT insert 'd' because Alt is pressed
     await page.keyboard.press('Alt+d');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).not.toContain('3d6d');
   });
@@ -337,7 +340,7 @@ test.describe('DiceApp - Mode Switching', () => {
     await page.click('#hamburger');
     await page.click('[data-mode="keypad"]');
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('3d6 2d8');
   });
@@ -528,8 +531,78 @@ test.describe('DiceApp - Edge Cases', () => {
     // Resize to mobile
     await page.setViewportSize(MOBILE_VIEWPORT);
 
-    const display = page.locator('#diceDisplay');
+    const display = page.locator('#dicePseudoInput');
     const text = await display.textContent();
     expect(text).toContain('3d6');
   });
+
+  test.describe('DiceApp - Performance', () => {
+    test('should load quickly despite no-cache headers', async ({page}) => {
+      const startTime = Date.now();
+
+      await page.goto(APP_URL);
+      await page.waitForSelector('#diceInput', {state: 'visible'});
+
+      const loadTime = Date.now() - startTime;
+
+      // Should load in under 1 second for local file
+      expect(loadTime).toBeLessThan(1000);
+    });
+
+    test('should handle multiple reloads efficiently', async ({page}) => {
+      const reloadTimes = [];
+
+      for (let i = 0; i < 5; i++) {
+        const startTime = Date.now();
+        await page.goto(APP_URL);
+        await page.waitForSelector('#diceInput', {state: 'visible'});
+        const loadTime = Date.now() - startTime;
+        reloadTimes.push(loadTime);
+      }
+
+      const avgTime = reloadTimes.reduce((a, b) => a + b) / reloadTimes.length;
+
+      // Average should still be reasonable
+      expect(avgTime).toBeLessThan(1500);
+    });
+
+    test('should not degrade with repeated interactions', async ({page}) => {
+      await page.goto(APP_URL);
+
+      const interactionTimes = [];
+
+      for (let i = 0; i < 10; i++) {
+        const startTime = performance.now();
+
+        await page.fill('#diceInput', `${i+1}d6`);
+        await page.click('#rollBtn');
+        await page.waitForSelector('.result-item');
+
+        const duration = performance.now() - startTime;
+        interactionTimes.push(duration);
+
+        await page.click('#clearBtn');
+      }
+
+      const avgTime = interactionTimes.reduce((a, b) => a + b) / interactionTimes.length;
+
+      // Interactions should be fast
+      expect(avgTime).toBeLessThan(200);
+    });
+  });
+
+  test('should use keyboard on tablet with mouse', async ({page}) => {
+    await page.setViewportSize({width: 800, height: 600}); // Tablet size
+
+    // Mock as non-touch device
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'maxTouchPoints', {value: 0});
+    });
+
+    await page.goto(APP_URL);
+
+    const textInput = page.locator('#diceInput');
+    await expect(textInput).toBeVisible();
+  });
+
 });
