@@ -490,11 +490,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     // Configuration
     PLACEHOLDER_TEXT: "e.g., 3d6 4d12 (# of dice + 'd' + die size)",
 
-    // State management
+    // State management (Model)
     state: {
       currentValue: '',
       cursorPosition: 0,
-      mode: 'auto' // 'auto', 'keyboard', or 'keypad'
+      mode: 'auto', // 'auto', 'keyboard', or 'keypad'
+      rollResults: [],
+      errorMessage: ''
     },
 
     // DOM element cache
@@ -582,7 +584,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       }
     },
 
-    // UI helper methods
+    // View (pure render functions, Model -> View only)
     ui: {
       /**
        * Check if device should use keypad mode
@@ -596,33 +598,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       },
 
       /**
-       * Update the display div with current value and cursor position
+       * Update the entire UI from Model
        */
-      updateDisplay() {
-        const {state, nodes} = DiceApp;
-
-        if (this.isKeypadMode()) {
-          if (state.currentValue === '') {
-            nodes.display.classList.add('empty');
-            nodes.display.innerHTML = '';
-            state.cursorPosition = 0;
-          } else {
-            nodes.display.classList.remove('empty');
-            const before = state.currentValue.slice(0, state.cursorPosition);
-            const after = state.currentValue.slice(state.cursorPosition);
-            nodes.display.innerHTML = `${before}<span class="cursor"></span>${after}`;
-          }
-        }
+      renderAll() {
+        this.renderMode();
+        this.renderDisplay();
+        this.renderResults();
+        this.renderMenu();
       },
 
       /**
-       * Update visibility of keypad and display based on mode
+       * Render mode-specific layout
        */
-      refreshView() {
+      renderMode() {
         const {nodes, state} = DiceApp;
         const isKeypad = this.isKeypadMode();
 
-        // Update body class for forced modes
         document.body.classList.remove('force-keypad', 'force-keyboard');
         if (state.mode === 'keypad') {
           document.body.classList.add('force-keypad');
@@ -633,56 +624,74 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         nodes.keypad.classList.toggle('active', isKeypad);
         nodes.display.classList.toggle('active', isKeypad);
 
-        // Sync state when switching modes
-        if (isKeypad) {
-          state.currentValue = nodes.input.value;
-          state.cursorPosition = state.currentValue.length;
-        } else {
+        // SYNC: Only ever Model -> DOM
+        if (!isKeypad) {
           nodes.input.value = state.currentValue;
         }
-
-        this.updateDisplay();
       },
 
       /**
-       * Get current input value from appropriate source
-       * @returns {string}
+       * Render the display div (keypad mode)
        */
-      getValue() {
-        return this.isKeypadMode() ? DiceApp.state.currentValue : DiceApp.nodes.input.value;
-      },
+      renderDisplay() {
+        const {state, nodes} = DiceApp;
+        if (!this.isKeypadMode()) return;
 
-      /**
-       * Set input value in appropriate location
-       * @param {string} val
-       */
-      setValue(val) {
-        if (this.isKeypadMode()) {
-          DiceApp.state.currentValue = val;
-          DiceApp.state.cursorPosition = val.length;
-          this.updateDisplay();
+        if (state.currentValue === '') {
+          nodes.display.classList.add('empty');
+          nodes.display.innerHTML = '';
         } else {
-          DiceApp.nodes.input.value = val;
+          nodes.display.classList.remove('empty');
+          const before = state.currentValue.slice(0, state.cursorPosition);
+          const after = state.currentValue.slice(state.cursorPosition);
+          nodes.display.innerHTML = `${before}<span class="cursor"></span>${after}`;
         }
       },
 
       /**
-       * Update menu to show current mode
+       * Render roll results and errors
        */
-      updateMenu() {
-        const {state, nodes} = DiceApp;
-        const menuItems = nodes.menu.querySelectorAll('.menu-item');
+      renderResults() {
+        const {nodes, state} = DiceApp;
 
+        let newHTML = '';
+        if (state.errorMessage) {
+          newHTML = `<div class="error">${state.errorMessage}</div>`;
+        } else {
+          newHTML = state.rollResults.map(r => `
+        <div class="result-item">
+          <div class="result-formula">${r.formula}</div>
+          <div class="result-value">Total: ${r.total}</div>
+          <div class="result-rolls">Rolls: ${r.rolls.join(' ')}</div>
+          <div class="result-range">Range: ${r.min}–${r.max}</div>
+        </div>
+      `).join('');
+        }
+
+        // Only update DOM if content has changed to avoid "jumping" on every keystroke
+        if (nodes.results.innerHTML !== newHTML) {
+          nodes.results.innerHTML = newHTML;
+        }
+      },
+
+      /**
+       * Render menu to show current mode
+       */
+      renderMenu() {
+        const {state, nodes} = DiceApp;
+        if (!nodes.menu) return;
+
+        const menuItems = nodes.menu.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
           const mode = item.dataset.mode;
           const check = item.querySelector('.menu-check');
 
           if (mode === state.mode) {
             item.classList.add('active');
-            check.style.display = 'block';
+            if (check) check.style.display = 'block';
           } else {
             item.classList.remove('active');
-            check.style.display = 'none';
+            if (check) check.style.display = 'none';
           }
         });
       },
@@ -702,25 +711,37 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       }
     },
 
-    // Core application actions
+    // Controller (mediates all input, updates Model, then calls View)
     actions: {
+      /**
+       * Update current value and cursor from external source (like keyboard input or hash)
+       * @param {string} val
+       * @param {number} pos
+       */
+      updateInput(val, pos) {
+        const {state, ui} = DiceApp;
+        state.currentValue = val;
+        state.cursorPosition = (pos !== undefined) ? pos : val.length;
+        ui.renderAll();
+      },
+
       /**
        * Perform dice roll and display results
        */
       roll() {
-        const {nodes, utils, ui} = DiceApp;
-        const notation = ui.getValue();
+        const {state, utils, ui} = DiceApp;
+        const notation = state.currentValue;
         const parsed = utils.parse(notation);
 
         if (!parsed) {
-          nodes.results.innerHTML = '<div class="error">Invalid dice notation. Use format like "3d6 4d12"</div>';
+          state.errorMessage = 'Invalid dice notation. Use format like "3d6 4d12"';
+          state.rollResults = [];
+          ui.renderAll();
           return;
         }
 
-        // Update URL with current dice configuration
-        utils.setQueryParam('dice', notation);
-
-        const rollResults = parsed.map(({count, sides}) => {
+        state.errorMessage = '';
+        state.rollResults = parsed.map(({count, sides}) => {
           const rolls = utils.roll(count, sides);
           const total = rolls.reduce((sum, val) => sum + val, 0);
           return {
@@ -732,27 +753,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           };
         });
 
-        nodes.results.innerHTML = rollResults.map(r => `
-        <div class="result-item">
-          <div class="result-formula">${r.formula}</div>
-          <div class="result-value">Total: ${r.total}</div>
-          <div class="result-rolls">Rolls: ${r.rolls.join(' ')}</div>
-          <div class="result-range">Range: ${r.min}–${r.max}</div>
-        </div>
-      `).join('');
+        // Update URL with current dice configuration
+        utils.setQueryParam('dice', notation);
+        ui.renderAll();
       },
 
       /**
        * Clear all inputs and results
        */
       clear() {
-        const {ui, nodes, utils} = DiceApp;
-        ui.setValue('');
-        nodes.results.innerHTML = '';
+        const {state, nodes, utils, ui} = DiceApp;
+        state.currentValue = '';
+        state.cursorPosition = 0;
+        state.rollResults = [];
+        state.errorMessage = '';
+
         // Use setTimeout to ensure DOM updates before hash changes
         setTimeout(() => {
           utils.setQueryParam('dice', '');
         }, 0);
+
+        ui.renderAll();
+
         if (!ui.isKeypadMode()) {
           nodes.input.focus();
         }
@@ -763,15 +785,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * @param {string} mode - 'auto', 'keyboard', or 'keypad'
        */
       setMode(mode) {
-        DiceApp.state.mode = mode;
-        DiceApp.ui.refreshView();
-        DiceApp.ui.updateMenu();
-        DiceApp.ui.closeMenu();
+        const {state, ui} = DiceApp;
+        state.mode = mode;
+        ui.renderAll();
+        ui.closeMenu();
       }
     },
 
     // Event handlers
     handlers: {
+      /**
+       * Handle desktop input events
+       * @param {Event} e
+       */
+      onInput(e) {
+        DiceApp.actions.updateInput(e.target.value, e.target.selectionStart);
+      },
+
       /**
        * Insert a character at the current cursor position
        * @param {string} char
@@ -782,7 +812,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           char +
           state.currentValue.slice(state.cursorPosition);
         state.cursorPosition++;
-        ui.updateDisplay();
+        ui.renderAll();
       },
 
       /**
@@ -794,7 +824,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.currentValue = state.currentValue.slice(0, state.cursorPosition - 1) +
             state.currentValue.slice(state.cursorPosition);
           state.cursorPosition--;
-          ui.updateDisplay();
+          ui.renderAll();
         }
       },
 
@@ -807,7 +837,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const newPos = state.cursorPosition + delta;
         if (newPos >= 0 && newPos <= state.currentValue.length) {
           state.cursorPosition = newPos;
-          ui.updateDisplay();
+          ui.renderAll();
         }
       },
 
@@ -965,7 +995,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             input: null,
             test: () => {
               DiceApp.actions.setMode('keyboard');
-              DiceApp.nodes.input.value = '2d8 1d20';
+              DiceApp.actions.updateInput('2d8 1d20');
               DiceApp.actions.setMode('keypad');
               return DiceApp.state.currentValue === '2d8 1d20';
             }
@@ -975,8 +1005,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             input: null,
             test: () => {
               DiceApp.actions.setMode('keypad');
-              DiceApp.state.currentValue = '5d6 3d4';
-              DiceApp.state.cursorPosition = DiceApp.state.currentValue.length;
+              DiceApp.actions.updateInput('5d6 3d4');
               DiceApp.actions.setMode('keyboard');
               return DiceApp.nodes.input.value === '5d6 3d4';
             }
@@ -985,7 +1014,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "URL hash is set on roll",
             input: null,
             test: () => {
-              DiceApp.ui.setValue('1d6');
+              DiceApp.actions.updateInput('1d6');
               DiceApp.actions.roll();
               const hash = window.location.hash.slice(1);
               const params = new URLSearchParams(hash);
@@ -997,7 +1026,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             input: null,
             async: true,
             test: async () => {
-              DiceApp.ui.setValue('1d6');
+              DiceApp.actions.updateInput('1d6');
               DiceApp.actions.roll();
               DiceApp.actions.clear();
               // Wait for setTimeout in clear() to complete
@@ -1295,6 +1324,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             DiceApp.state.currentValue = savedState.currentValue;
             DiceApp.state.cursorPosition = savedState.cursorPosition;
             DiceApp.state.mode = savedState.mode;
+            DiceApp.state.rollResults = [];
+            DiceApp.state.errorMessage = '';
             DiceApp.nodes.input.value = savedState.inputValue;
             DiceApp.nodes.display.innerHTML = savedState.displayHTML;
             DiceApp.nodes.display.className = savedState.displayClasses;
@@ -1312,8 +1343,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
 
             // Force UI refresh to match restored state
-            DiceApp.ui.refreshView();
-            DiceApp.ui.updateMenu();
+            DiceApp.ui.renderAll();
           }
         }
 
@@ -1359,31 +1389,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (diceFromUrl) {
           DiceApp.state.currentValue = diceFromUrl;
           DiceApp.state.cursorPosition = diceFromUrl.length;
-          DiceApp.nodes.input.value = diceFromUrl;
         }
       },
 
       bindEvents() {
+        DiceApp.nodes.input.addEventListener('input', (e) => DiceApp.handlers.onInput(e));
+        DiceApp.nodes.input.addEventListener('keyup', (e) => DiceApp.handlers.onInput(e));
+        DiceApp.nodes.input.addEventListener('click', (e) => DiceApp.handlers.onInput(e));
         DiceApp.nodes.keypad.addEventListener('click', (e) => DiceApp.handlers.onKeypadClick(e));
         DiceApp.nodes.rollBtn.addEventListener('click', () => DiceApp.actions.roll());
         DiceApp.nodes.clearBtn.addEventListener('click', () => DiceApp.actions.clear());
         DiceApp.nodes.hamburger.addEventListener('click', () => DiceApp.ui.toggleMenu());
         DiceApp.nodes.menu.addEventListener('click', (e) => DiceApp.handlers.onMenuClick(e));
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
-        window.addEventListener('resize', () => DiceApp.ui.refreshView());
+        window.addEventListener('resize', () => DiceApp.ui.renderAll());
         document.addEventListener('click', (e) => DiceApp.handlers.onDocumentClick(e));
 
         window.addEventListener('hashchange', () => {
-          const diceConfig = DiceApp.utils.getQueryParam('dice');
-          if (diceConfig && diceConfig !== DiceApp.ui.getValue()) {
-            DiceApp.ui.setValue(diceConfig);
+          const diceConfig = DiceApp.utils.getQueryParam('dice') || '';
+          if (diceConfig !== DiceApp.state.currentValue) {
+            DiceApp.actions.updateInput(diceConfig);
           }
         });
       },
 
       initializeUI() {
-        DiceApp.ui.refreshView();
-        DiceApp.ui.updateMenu();
+        DiceApp.ui.renderAll();
         if (!DiceApp.ui.isKeypadMode()) {
           DiceApp.nodes.input.focus();
         }
@@ -1393,6 +1424,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
   // Start the application
   DiceApp.setup.init();
+
+  // Run internal tests manually in console to avoid side effects during Playwright tests
+  // console.log('💡 To run tests, call: DiceApp.tests.run()');
 
 </script>
 </body>
