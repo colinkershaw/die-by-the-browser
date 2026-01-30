@@ -167,7 +167,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             border-color: #764ba2;
         }
 
-        #diceDisplay {
+        #dicePseudoInput {
             width: 100%;
             padding: 15px;
             font-size: 1.2em;
@@ -182,15 +182,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         /*noinspection CssUnusedSymbol*/
-        #diceDisplay.active {
+        #dicePseudoInput.active {
             display: block;
         }
 
-        #diceDisplay.empty {
+        #dicePseudoInput.empty {
             color: #999;
         }
 
-        #diceDisplay.empty::before {
+        #dicePseudoInput.empty::before {
             content: var(--placeholder-text);
         }
 
@@ -377,7 +377,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             display: none !important;
         }
 
-        body.force-keypad #diceDisplay {
+        body.force-keypad #dicePseudoInput {
             display: block !important;
         }
 
@@ -389,7 +389,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             display: block !important;
         }
 
-        body.force-keyboard #diceDisplay {
+        body.force-keyboard #dicePseudoInput {
             display: none !important;
         }
 
@@ -415,7 +415,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 display: none;
             }
 
-            body:not(.force-keyboard) #diceDisplay {
+            body:not(.force-keyboard) #dicePseudoInput {
                 display: block;
             }
         }
@@ -449,7 +449,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
     <div class="input-section">
         <input type="text" id="diceInput" autocomplete="off" aria-label="Dice notation input">
-        <div id="diceDisplay" class="empty"></div>
+        <div id="dicePseudoInput" class="empty"></div>
     </div>
 
     <div class="keypad" id="keypad">
@@ -512,10 +512,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * @returns {Object} {results, error}
        */
       parse(input) {
-        if (!input || typeof input !== 'string') return { results: null, error: 'INVALID_FORMAT' };
+        if (!input || typeof input !== 'string') return {results: null, error: 'INVALID_FORMAT'};
 
         const trimmed = input.trim();
-        if (!trimmed) return { results: null, error: 'INVALID_FORMAT' };
+        if (!trimmed) return {results: null, error: 'INVALID_FORMAT'};
 
         const parts = trimmed.split(/\s+/);
         const results = [];
@@ -523,32 +523,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         for (const part of parts) {
           const match = part.match(/^(\d+)d(\d+)$/i);
-          if (!match) return { results: null, error: 'INVALID_FORMAT' };
+          if (!match) return {results: null, error: 'INVALID_FORMAT'};
 
           const count = parseInt(match[1], 10);
           const sides = parseInt(match[2], 10);
 
           if (isNaN(count) || isNaN(sides) || count <= 0 || sides <= 0) {
-            return { results: null, error: 'INVALID_FORMAT' };
+            return {results: null, error: 'INVALID_FORMAT'};
           }
 
           if (count > DiceApp.MAX_DICE_COUNT) {
-            return { results: null, error: 'TOO_MANY_DICE' };
+            return {results: null, error: 'TOO_MANY_DICE'};
           }
 
           if (sides > DiceApp.MAX_DIE_SIDES) {
-            return { results: null, error: 'TOO_MANY_SIDES' };
+            return {results: null, error: 'TOO_MANY_SIDES'};
           }
 
           totalCount += count;
           if (totalCount > DiceApp.MAX_DICE_COUNT) {
-            return { results: null, error: 'TOO_MANY_DICE' };
+            return {results: null, error: 'TOO_MANY_DICE'};
           }
 
           results.push({count, sides});
         }
 
-        return { results: results.length > 0 ? results : null, error: null };
+        return {results: results.length > 0 ? results : null, error: null};
       },
 
       /**
@@ -604,6 +604,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
     // View (pure render functions, Model -> View only)
     ui: {
+
       /**
        * Check if device should use keypad mode
        * @returns {boolean}
@@ -612,7 +613,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const {state} = DiceApp;
         if (state.mode === 'keypad') return true;
         if (state.mode === 'keyboard') return false;
-        return window.innerWidth <= 600;
+        return this.shouldUseKeypad();
+      },
+
+      shouldUseKeypad() {
+        // Match common breakpoints
+        const mobile = window.matchMedia('(max-width: 767px)').matches;
+        const tablet = window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches;
+        const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+
+        // Mobile always uses keypad
+        if (mobile) return true;
+
+        // Tablets use keypad ONLY if they have touch-only (coarse pointer)
+        if (tablet && hasCoarsePointer) return true;
+
+        // Desktop never uses keypad by default
+        return false;
       },
 
       /**
@@ -1412,7 +1429,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       cacheDomElements() {
         DiceApp.nodes = {
           input: document.getElementById('diceInput'),
-          display: document.getElementById('diceDisplay'),
+          display: document.getElementById('dicePseudoInput'),
           keypad: document.getElementById('keypad'),
           rollBtn: document.getElementById('rollBtn'),
           clearBtn: document.getElementById('clearBtn'),
@@ -1467,9 +1484,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
   // Start the application
   DiceApp.setup.init();
-
-  // Run internal tests manually in console to avoid side effects during Playwright tests
-  // console.log('💡 To run tests, call: DiceApp.tests.run()');
 
 </script>
 </body>
