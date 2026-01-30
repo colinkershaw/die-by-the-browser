@@ -489,6 +489,36 @@ test.describe('DiceApp - Edge Cases', () => {
     await expect(results).toHaveCount(1);
   });
 
+  test('should reject very large numbers (overflow count)', async ({page}) => {
+    await page.goto(APP_URL);
+    await page.fill('#diceInput', '100001d100');
+    await page.click('#rollBtn');
+
+    const error = page.locator('.error');
+    await expect(error).toBeVisible();
+    await expect(error).toHaveText(/Too many dice/);
+  });
+
+  test('should reject very large numbers (overflow total count)', async ({page}) => {
+    await page.goto(APP_URL);
+    await page.fill('#diceInput', '100000d100 1d4');
+    await page.click('#rollBtn');
+
+    const error = page.locator('.error');
+    await expect(error).toBeVisible();
+    await expect(error).toHaveText(/Too many dice/);
+  });
+
+  test('should reject very large numbers (overflow sides)', async ({page}) => {
+    await page.goto(APP_URL);
+    await page.fill('#diceInput', '1d1000000001');
+    await page.click('#rollBtn');
+
+    const error = page.locator('.error');
+    await expect(error).toBeVisible();
+    await expect(error).toHaveText(/Too many sides/);
+  });
+
   test('should handle window resize', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
