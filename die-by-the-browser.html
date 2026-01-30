@@ -489,6 +489,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
   const DiceApp = {
     // Configuration
     PLACEHOLDER_TEXT: "e.g., 3d6 4d12 (# of dice + 'd' + die size)",
+    MAX_DICE_COUNT: 100000,
+    MAX_DIE_SIDES: 1000000000,
 
     // State management (Model)
     state: {
@@ -507,42 +509,58 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       /**
        * Parse dice notation string into structured data
        * @param {string} input - Notation like "3d6 4d12"
-       * @returns {Array|null} Array of {count, sides} objects or null if invalid
+       * @returns {Object} {results, error}
        */
       parse(input) {
-        if (!input || typeof input !== 'string') return null;
+        if (!input || typeof input !== 'string') return { results: null, error: 'INVALID_FORMAT' };
 
         const trimmed = input.trim();
-        if (!trimmed) return null;
+        if (!trimmed) return { results: null, error: 'INVALID_FORMAT' };
 
         const parts = trimmed.split(/\s+/);
         const results = [];
+        let totalCount = 0;
 
         for (const part of parts) {
           const match = part.match(/^(\d+)d(\d+)$/i);
-          if (!match) return null;
+          if (!match) return { results: null, error: 'INVALID_FORMAT' };
 
           const count = parseInt(match[1], 10);
           const sides = parseInt(match[2], 10);
 
-          if (count <= 0 || sides <= 0) return null;
+          if (isNaN(count) || isNaN(sides) || count <= 0 || sides <= 0) {
+            return { results: null, error: 'INVALID_FORMAT' };
+          }
+
+          if (count > DiceApp.MAX_DICE_COUNT) {
+            return { results: null, error: 'TOO_MANY_DICE' };
+          }
+
+          if (sides > DiceApp.MAX_DIE_SIDES) {
+            return { results: null, error: 'TOO_MANY_SIDES' };
+          }
+
+          totalCount += count;
+          if (totalCount > DiceApp.MAX_DICE_COUNT) {
+            return { results: null, error: 'TOO_MANY_DICE' };
+          }
 
           results.push({count, sides});
         }
 
-        return results.length > 0 ? results : null;
+        return { results: results.length > 0 ? results : null, error: null };
       },
 
       /**
        * Roll multiple dice and return individual results
        * @param {number} count - Number of dice
        * @param {number} sides - Sides per die
-       * @returns {Array} Individual roll results
+       * @returns {Uint32Array} Individual roll results
        */
       roll(count, sides) {
-        const rolls = [];
+        const rolls = new Uint32Array(count);
         for (let i = 0; i < count; i++) {
-          rolls.push(Math.floor(Math.random() * sides) + 1);
+          rolls[i] = Math.floor(Math.random() * sides) + 1;
         }
         return rolls;
       },
@@ -731,10 +749,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       roll() {
         const {state, utils, ui} = DiceApp;
         const notation = state.currentValue;
-        const parsed = utils.parse(notation);
+        const {results: parsed, error} = utils.parse(notation);
 
         if (!parsed) {
-          state.errorMessage = 'Invalid dice notation. Use format like "3d6 4d12"';
+          if (error === 'TOO_MANY_DICE') {
+            state.errorMessage = `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`;
+          } else if (error === 'TOO_MANY_SIDES') {
+            state.errorMessage = `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`;
+          } else {
+            state.errorMessage = 'Invalid dice notation. Use format like "3d6 4d12"';
+          }
           state.rollResults = [];
           ui.renderAll();
           return;
@@ -743,7 +767,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         state.errorMessage = '';
         state.rollResults = parsed.map(({count, sides}) => {
           const rolls = utils.roll(count, sides);
-          const total = rolls.reduce((sum, val) => sum + val, 0);
+          let total = 0;
+          for (let i = 0; i < rolls.length; i++) {
+            total += rolls[i];
+          }
           return {
             formula: `${count}d${sides}`,
             rolls,
@@ -988,6 +1015,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           {
             name: "Reject zero-sided die",
             input: "3d0",
+            expected: null
+          },
+          {
+            name: "Reject too large dice count",
+            input: "999999d100",
+            expected: null
+          },
+          {
+            name: "Reject too large die sides",
+            input: "1d9999999999",
+            expected: null
+          },
+          {
+            name: "Reject too many total dice",
+            input: "60000d6 50000d6",
             expected: null
           },
           {
@@ -1272,7 +1314,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         console.log('🎲 Running DiceApp Tests...\n');
 
-        for (const test of testCases) {
+        for (const testCase of testCases) {
           // SAVE STATE before each test (deep copy where needed)
           const savedState = {
             currentValue: DiceApp.state.currentValue,
@@ -1289,28 +1331,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           try {
             let result, match;
 
-            if (test.test) {
+            if (testCase.test) {
               // Custom test function (might be async)
-              if (test.async) {
-                result = await test.test();
+              if (testCase.async) {
+                result = await testCase.test();
               } else {
-                result = test.test();
+                result = testCase.test();
               }
               match = result === true;
             } else {
               // Parse test
-              result = DiceApp.utils.parse(test.input);
-              match = JSON.stringify(result) === JSON.stringify(test.expected);
+              const parseResult = DiceApp.utils.parse(testCase.input);
+              result = parseResult.results;
+              match = JSON.stringify(result) === JSON.stringify(testCase.expected);
             }
 
             if (match) {
               passed++;
-              console.log(`✓ ${test.name}`);
+              console.log(`✓ ${testCase.name}`);
             } else {
               failed++;
-              console.error(`✗ ${test.name}`);
-              if (test.expected !== undefined) {
-                console.error(`  Expected: ${JSON.stringify(test.expected)}`);
+              console.error(`✗ ${testCase.name}`);
+              if (testCase.expected !== undefined) {
+                console.error(`  Expected: ${JSON.stringify(testCase.expected)}`);
                 console.error(`  Got: ${JSON.stringify(result)}`);
               } else {
                 console.error(`  Test returned: ${result}`);
@@ -1318,7 +1361,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           } catch (e) {
             failed++;
-            console.error(`✗ ${test.name} - Exception: ${e.message}`);
+            console.error(`✗ ${testCase.name} - Exception: ${e.message}`);
           } finally {
             // RESTORE STATE after each test - be thorough
             DiceApp.state.currentValue = savedState.currentValue;
