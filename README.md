@@ -1,24 +1,22 @@
 # 🎲 Die! By the Browser
 
 ### *Velocity-First Dice Rolling*
-A free (in all senses), lightweight, zero-dependency, single-file web utility designed for tabletop RPG players who prioritize speed over 3D animations.
+A free (in all senses), lightweight, zero-dependency, single-file web utility designed for tabletop RPG players who prioritize speed over 3D animations. [Seeing](https://colinkershaw.github.io/die-by-the-browser/) is believing!
 
 ---
 
 ## 🚀 The Vision: Why this exists
 
-**Die! By the Browser** was born from a vision of a "simple HTML app" that solves the "Input Velocity" problem. By utilizing a custom-built virtual keypad designed specifically for dice notation on small touchscreen devices, it acts like a calculator for your tabletop sessions — getting you the results as fast as your thumbs can move. Physical keyboards are also supported for maximum utility.  
+**Die! By the Browser** was born from a vision of a "simple HTML app" that solves the "Input Velocity" problem. By utilizing a custom-built virtual keypad designed specifically for dice notation on small touchscreen devices, it acts like a calculator for your tabletop sessions — getting you the results as fast as your thumbs can move. Physical keyboards are also supported for maximum utility on the maximum number of devices.  
 
 ## ✨ Key Features
 
-* **Custom Virtual Keypad**: optimized for mobile devices which uses a "text input that isn't a text input" strategy. This prevents the native mobile keyboard from popping up, allowing for rapid-fire entry of number of dice, "d", and die size.
+* **Custom Virtual Keypad**: Optimized for mobile devices by using a "text input that isn't a text input" strategy. This prevents the native mobile keyboard from popping up, allowing for rapid-fire entry of number of dice, "d", and die size on a custom calculator-style keypad.
 * **Deep-Link State**: The app synchronizes your input with the URL hash whenever you roll the dice. You can bookmark favourite combinations or share a link to a specific configuration with your party.
 * **Zero Dependencies**: Written in pure vanilla JavaScript, CSS, and HTML. No frameworks, no trackers, and no external requests.
-* **Offline by Design**: As a single self-contained file, it is naturally offline-compatible. It works in basements, on planes, or in convention centers with zero connectivity.
+* **Offline by Design**: As a single self-contained file, it is naturally offline-compatible. It works in basements, on planes, or in convention centers with zero connectivity. It's also a Progressive Web App (PWA) so downloading on mobile devices is seamless.
 * **User Agency (View-Mode Overrides)**: Includes a manual override menu to force "Mobile Mode" on tablets or "Desktop Mode" on phones, ensuring the user — not the device — can choose the interface.
 * **Integrated Test Suite**: Features a built-in headless test runner to ensure logic integrity and state persistence across all platforms.
-
-
 
 ## 🛠 Technical Highlights
 
