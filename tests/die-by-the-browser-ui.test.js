@@ -13,6 +13,7 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const APP_URL = `file://${resolve(testDir, '../die-by-the-browser.html')}`;
 const DESKTOP_VIEWPORT = {width: 1280, height: 720};
 const MOBILE_VIEWPORT = {width: 400, height: 900};
+const TABLET_VIEWPORT = {width: 900, height: 900};
 
 // Overriding Math.random to always return a predictable sequence
 test.beforeEach(async ({ page }) => {
@@ -140,6 +141,51 @@ test.describe('DiceApp - Desktop Mode', () => {
     await page.click('#rollBtn');
 
     await expect(page).toHaveScreenshot('desktop-with-results.png', { fullPage: true });
+  });
+});
+
+test.describe('DiceApp - Touch Tablet Mode', () => {
+  test.beforeEach(async ({page}) => {
+    await page.setViewportSize(TABLET_VIEWPORT);
+    await page.addInitScript(() => {
+      const originalMatchMedia = window.matchMedia.bind(window);
+      const buildMatchMediaResult = (matches, media) => ({
+        matches,
+        media,
+        onchange: null,
+        addListener() {},
+        removeListener() {},
+        addEventListener() {},
+        removeEventListener() {},
+        dispatchEvent() {
+          return false;
+        }
+      });
+
+      window.matchMedia = (query) => {
+        if (query.includes('pointer: coarse')) {
+          return buildMatchMediaResult(true, query);
+        }
+        if (query.includes('min-width: 768px') && query.includes('max-width: 1023px')) {
+          return buildMatchMediaResult(true, query);
+        }
+        if (query.includes('max-width: 767px')) {
+          return buildMatchMediaResult(false, query);
+        }
+        return originalMatchMedia(query);
+      };
+    });
+    await page.goto(APP_URL);
+  });
+
+  test('should hide text input when keypad auto-selects on touch tablets', async ({page}) => {
+    const textInput = page.locator('#diceInput');
+    const display = page.locator('#dicePseudoInput');
+    const keypad = page.locator('#keypad');
+
+    await expect(textInput).not.toBeVisible();
+    await expect(display).toBeVisible();
+    await expect(keypad).toBeVisible();
   });
 });
 
@@ -532,8 +578,7 @@ test.describe('DiceApp - Edge Cases', () => {
     await page.setViewportSize(MOBILE_VIEWPORT);
 
     const display = page.locator('#dicePseudoInput');
-    const text = await display.textContent();
-    expect(text).toContain('3d6');
+    await expect(display).toContainText('3d6');
   });
 
   test.describe('DiceApp - Performance', () => {

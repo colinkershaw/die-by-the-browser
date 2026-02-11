@@ -655,8 +655,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       shouldUseKeypad() {
         // Match common breakpoints
-        const mobile = window.matchMedia('(max-width: 767px)').matches;
-        const tablet = window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches;
+        const width = window.innerWidth;
+        const mobile = width <= 767;
+        const tablet = width >= 768 && width <= 1023;
         const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
 
         // Mobile always uses keypad
@@ -695,6 +696,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         nodes.keypad.classList.toggle('active', isKeypad);
         nodes.display.classList.toggle('active', isKeypad);
+        nodes.input.hidden = isKeypad;
+        nodes.display.hidden = !isKeypad;
+        nodes.keypad.hidden = !isKeypad;
 
         // SYNC: Only ever Model -> DOM
         if (!isKeypad) {
