@@ -495,6 +495,171 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 <script>
 
   /**
+   * DiceNotation - All dice notation business logic (pure, no DOM)
+   * Handles parsing, validation, rolling, and error messages
+   */
+  const DiceNotation = {
+    /**
+     * Parse dice notation string into structured data
+     * @param {string} input - Notation like "3d6 4d12"
+     * @returns {Object} {results, error}
+     */
+    parse(input) {
+      if (!input || typeof input !== 'string') return {results: null, error: 'INVALID_FORMAT'};
+
+      const trimmed = input.trim();
+      if (!trimmed) return {results: null, error: 'INVALID_FORMAT'};
+
+      const parts = trimmed.split(/\s+/);
+      const results = [];
+      let totalCount = 0;
+
+      for (const part of parts) {
+        const match = part.match(/^(\d+)d(\d+)$/i);
+        if (!match) return {results: null, error: 'INVALID_FORMAT'};
+
+        const count = parseInt(match[1], 10);
+        const sides = parseInt(match[2], 10);
+
+        if (isNaN(count) || isNaN(sides) || count <= 0 || sides <= 0) {
+          return {results: null, error: 'INVALID_FORMAT'};
+        }
+
+        if (count > DiceApp.MAX_DICE_COUNT) {
+          return {results: null, error: 'TOO_MANY_DICE'};
+        }
+
+        if (sides > DiceApp.MAX_DIE_SIDES) {
+          return {results: null, error: 'TOO_MANY_SIDES'};
+        }
+
+        totalCount += count;
+        if (totalCount > DiceApp.MAX_DICE_COUNT) {
+          return {results: null, error: 'TOO_MANY_DICE'};
+        }
+
+        results.push({count, sides});
+      }
+
+      return {results: results.length > 0 ? results : null, error: null};
+    },
+
+    /**
+     * Validate dice notation without parsing
+     * @param {string} input
+     * @returns {Object} {valid: boolean, error: string|null}
+     */
+    validate(input) {
+      const {results, error} = this.parse(input);
+      return {valid: results !== null, error};
+    },
+
+    /**
+     * Roll dice and return results
+     * @param {number} count - Number of dice
+     * @param {number} sides - Sides per die
+     * @returns {Uint32Array} Individual roll results
+     */
+    roll(count, sides) {
+      const rolls = new Uint32Array(count);
+      for (let i = 0; i < count; i++) {
+        rolls[i] = Math.floor(Math.random() * sides) + 1;
+      }
+      return rolls;
+    },
+
+    /**
+     * Get user-friendly error message
+     * @param {string} errorCode
+     * @returns {string}
+     */
+    getErrorMessage(errorCode) {
+      const messages = {
+        'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12"',
+        'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
+        'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`
+      };
+      return messages[errorCode] || 'Unknown error';
+    }
+  };
+
+  /**
+   * DiceInput - Dual-mode input rendering and mode switching (UI only)
+   * Handles keyboard and keypad display and interactions
+   */
+  const DiceInput = {
+    keyboard: null,  // Reference to real <input>
+    keypad: null,    // Reference to pseudo input div
+    keypadButtons: null, // Reference to keypad container
+
+    /**
+     * Initialize with DOM nodes
+     */
+    init(keyboardNode, keypadNode, keypadButtonsNode) {
+      this.keyboard = keyboardNode;
+      this.keypad = keypadNode;
+      this.keypadButtons = keypadButtonsNode;
+    },
+
+    /**
+     * Switch to keyboard or keypad mode
+     * @param {boolean} useKeypad
+     */
+    setMode(useKeypad) {
+      document.body.classList.remove('force-keypad', 'force-keyboard');
+      document.body.classList.add(useKeypad ? 'force-keypad' : 'force-keyboard');
+      this.keyboard.disabled = useKeypad;
+    },
+
+    /**
+     * Update display with value and cursor position
+     * @param {string} value
+     * @param {number} cursorPos
+     * @param {boolean} isKeypadMode
+     */
+    setValue(value, cursorPos, isKeypadMode) {
+      if (isKeypadMode) {
+        this.updateKeypad(value, cursorPos);
+      } else {
+        this.updateKeyboard(value, cursorPos);
+      }
+    },
+
+    /**
+     * Update keyboard input
+     */
+    updateKeyboard(value, cursorPos) {
+      this.keyboard.value = value;
+      this.keyboard.setSelectionRange(cursorPos, cursorPos);
+    },
+
+    /**
+     * Update keypad pseudo input
+     */
+    updateKeypad(value, cursorPos) {
+      if (value === '') {
+        this.keypad.classList.add('empty');
+        this.keypad.innerHTML = '';
+      } else {
+        this.keypad.classList.remove('empty');
+        const before = value.slice(0, cursorPos);
+        const after = value.slice(cursorPos);
+        this.keypad.innerHTML = `${before}<span class="cursor"></span>${after}`;
+      }
+    },
+
+    /**
+     * Focus the active input
+     * @param {boolean} isKeypadMode
+     */
+    focus(isKeypadMode) {
+      if (!isKeypadMode) {
+        this.keyboard.focus();
+      }
+    }
+  };
+
+  /**
    * DiceApp (Die! By the Browser) | Copyright (C) 2026 Colin Kershaw
    * Licensed under GNU AGPLv3 (See file header for full notice).
    * A dice rolling application with keyboard and keypad support.
@@ -519,67 +684,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     // DOM element cache
     nodes: {},
 
-    // Utility functions (pure logic, no side effects)
+    // Utility functions (URL-specific, no dice logic)
     utils: {
-      /**
-       * Parse dice notation string into structured data
-       * @param {string} input - Notation like "3d6 4d12"
-       * @returns {Object} {results, error}
-       */
-      parse(input) {
-        if (!input || typeof input !== 'string') return {results: null, error: 'INVALID_FORMAT'};
-
-        const trimmed = input.trim();
-        if (!trimmed) return {results: null, error: 'INVALID_FORMAT'};
-
-        const parts = trimmed.split(/\s+/);
-        const results = [];
-        let totalCount = 0;
-
-        for (const part of parts) {
-          const match = part.match(/^(\d+)d(\d+)$/i);
-          if (!match) return {results: null, error: 'INVALID_FORMAT'};
-
-          const count = parseInt(match[1], 10);
-          const sides = parseInt(match[2], 10);
-
-          if (isNaN(count) || isNaN(sides) || count <= 0 || sides <= 0) {
-            return {results: null, error: 'INVALID_FORMAT'};
-          }
-
-          if (count > DiceApp.MAX_DICE_COUNT) {
-            return {results: null, error: 'TOO_MANY_DICE'};
-          }
-
-          if (sides > DiceApp.MAX_DIE_SIDES) {
-            return {results: null, error: 'TOO_MANY_SIDES'};
-          }
-
-          totalCount += count;
-          if (totalCount > DiceApp.MAX_DICE_COUNT) {
-            return {results: null, error: 'TOO_MANY_DICE'};
-          }
-
-          results.push({count, sides});
-        }
-
-        return {results: results.length > 0 ? results : null, error: null};
-      },
-
-      /**
-       * Roll multiple dice and return individual results
-       * @param {number} count - Number of dice
-       * @param {number} sides - Sides per die
-       * @returns {Uint32Array} Individual roll results
-       */
-      roll(count, sides) {
-        const rolls = new Uint32Array(count);
-        for (let i = 0; i < count; i++) {
-          rolls[i] = Math.floor(Math.random() * sides) + 1;
-        }
-        return rolls;
-      },
-
       /**
        * Get query parameter from URL hash
        * @param {string} param - Parameter name
@@ -634,7 +740,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       renderAll() {
         this.renderMode();
-        this.renderDisplay();
         this.renderResults();
         this.renderMenu();
       },
@@ -643,37 +748,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Render mode-specific layout
        */
       renderMode() {
-        const {nodes, state} = DiceApp;
+        const {state} = DiceApp;
         const isKeypad = this.isKeypadMode();
 
-        document.body.classList.remove('force-keypad', 'force-keyboard');
-        document.body.classList.add(isKeypad ? 'force-keypad' : 'force-keyboard');
-        nodes.input.disabled = isKeypad;
-
-        if (isKeypad) {
-          this.renderDisplay();
-        } else {
-          nodes.input.value = state.currentValue;
-          nodes.input.setSelectionRange(state.cursorPosition, state.cursorPosition);
-        }
-      },
-
-      /**
-       * Render the display div (keypad mode)
-       */
-      renderDisplay() {
-        const {state, nodes} = DiceApp;
-        if (!this.isKeypadMode()) return;
-
-        if (state.currentValue === '') {
-          nodes.display.classList.add('empty');
-          nodes.display.innerHTML = '';
-        } else {
-          nodes.display.classList.remove('empty');
-          const before = state.currentValue.slice(0, state.cursorPosition);
-          const after = state.currentValue.slice(state.cursorPosition);
-          nodes.display.innerHTML = `${before}<span class="cursor"></span>${after}`;
-        }
+        DiceInput.setMode(isKeypad);
+        DiceInput.setValue(state.currentValue, state.cursorPosition, isKeypad);
       },
 
       /**
@@ -759,16 +838,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       roll() {
         const {state, utils, ui} = DiceApp;
         const notation = state.currentValue;
-        const {results: parsed, error} = utils.parse(notation);
+        const {results: parsed, error} = DiceNotation.parse(notation);
 
         if (!parsed) {
-          if (error === 'TOO_MANY_DICE') {
-            state.errorMessage = `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`;
-          } else if (error === 'TOO_MANY_SIDES') {
-            state.errorMessage = `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`;
-          } else {
-            state.errorMessage = 'Invalid dice notation. Use format like "3d6 4d12"';
-          }
+          state.errorMessage = DiceNotation.getErrorMessage(error);
           state.rollResults = [];
           ui.renderAll();
           return;
@@ -776,7 +849,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         state.errorMessage = '';
         state.rollResults = parsed.map(({count, sides}) => {
-          const rolls = utils.roll(count, sides);
+          const rolls = DiceNotation.roll(count, sides);
           let total = 0;
           for (let i = 0; i < rolls.length; i++) {
             total += rolls[i];
@@ -790,7 +863,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           };
         });
 
-        // Update URL with current dice configuration
         utils.setQueryParam('dice', notation);
         ui.renderAll();
       },
@@ -799,7 +871,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Clear all inputs and results
        */
       clear() {
-        const {state, nodes, utils, ui} = DiceApp;
+        const {state, utils, ui} = DiceApp;
         state.currentValue = '';
         state.cursorPosition = 0;
         state.rollResults = [];
@@ -811,10 +883,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }, 0);
 
         ui.renderAll();
-
-        if (!ui.isKeypadMode()) {
-          nodes.input.focus();
-        }
+        DiceInput.focus(ui.isKeypadMode());
       },
 
       /**
@@ -1013,63 +1082,87 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const testCases = [
           {
             name: "Parse single dice roll",
-            input: "3d6",
-            expected: [{count: 3, sides: 6}]
+            test: () => {
+              const result = DiceNotation.parse("3d6");
+              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}]);
+            }
           },
           {
             name: "Parse multiple dice rolls",
-            input: "3d6 4d12",
-            expected: [{count: 3, sides: 6}, {count: 4, sides: 12}]
+            test: () => {
+              const result = DiceNotation.parse("3d6 4d12");
+              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}, {count: 4, sides: 12}]);
+            }
           },
           {
             name: "Parse with extra spaces",
-            input: "3d6  4d12",
-            expected: [{count: 3, sides: 6}, {count: 4, sides: 12}]
+            test: () => {
+              const result = DiceNotation.parse("3d6  4d12");
+              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}, {count: 4, sides: 12}]);
+            }
           },
           {
             name: "Handle single die",
-            input: "1d20",
-            expected: [{count: 1, sides: 20}]
+            test: () => {
+              const result = DiceNotation.parse("1d20");
+              return JSON.stringify(result.results) === JSON.stringify([{count: 1, sides: 20}]);
+            }
           },
           {
             name: "Handle large numbers",
-            input: "10d100",
-            expected: [{count: 10, sides: 100}]
+            test: () => {
+              const result = DiceNotation.parse("10d100");
+              return JSON.stringify(result.results) === JSON.stringify([{count: 10, sides: 100}]);
+            }
           },
           {
             name: "Reject invalid format - missing d",
-            input: "3-6",
-            expected: null
+            test: () => {
+              const result = DiceNotation.parse("3-6");
+              return result.results === null;
+            }
           },
           {
             name: "Reject invalid format - letters",
-            input: "3dx",
-            expected: null
+            test: () => {
+              const result = DiceNotation.parse("3dx");
+              return result.results === null;
+            }
           },
           {
             name: "Reject zero dice",
-            input: "0d6",
-            expected: null
+            test: () => {
+              const result = DiceNotation.parse("0d6");
+              return result.results === null;
+            }
           },
           {
             name: "Reject zero-sided die",
-            input: "3d0",
-            expected: null
+            test: () => {
+              const result = DiceNotation.parse("3d0");
+              return result.results === null;
+            }
           },
           {
             name: "Reject too large dice count",
-            input: "999999d100",
-            expected: null
+            test: () => {
+              const result = DiceNotation.parse("999999d100");
+              return result.results === null;
+            }
           },
           {
             name: "Reject too large die sides",
-            input: "1d9999999999",
-            expected: null
+            test: () => {
+              const result = DiceNotation.parse("1d9999999999");
+              return result.results === null;
+            }
           },
           {
             name: "Reject too many total dice",
-            input: "60000d6 50000d6",
-            expected: null
+            test: () => {
+              const result = DiceNotation.parse("60000d6 50000d6");
+              return result.results === null;
+            }
           },
           {
             name: "Keyboard and Keypad inputs stay in sync - Keyboard to Keypad",
@@ -1441,20 +1534,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           try {
             let result, match;
 
-            if (testCase.test) {
-              // Custom test function (might be async)
-              if (testCase.async) {
-                result = await testCase.test();
-              } else {
-                result = testCase.test();
-              }
-              match = result === true;
+            // All tests now use custom test function (might be async)
+            if (testCase.async) {
+              result = await testCase.test();
             } else {
-              // Parse test
-              const parseResult = DiceApp.utils.parse(testCase.input);
-              result = parseResult.results;
-              match = JSON.stringify(result) === JSON.stringify(testCase.expected);
+              result = testCase.test();
             }
+            match = result === true;
 
             if (match) {
               passed++;
@@ -1462,12 +1548,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             } else {
               failed++;
               console.error(`✗ ${testCase.name}`);
-              if (testCase.expected !== undefined) {
-                console.error(`  Expected: ${JSON.stringify(testCase.expected)}`);
-                console.error(`  Got: ${JSON.stringify(result)}`);
-              } else {
-                console.error(`  Test returned: ${result}`);
-              }
+              console.error(`  Test returned: ${result}`);
             }
           } catch (e) {
             failed++;
@@ -1509,6 +1590,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     setup: {
       init() {
         this.cacheDomElements();
+        DiceInput.init(
+          DiceApp.nodes.input,
+          DiceApp.nodes.display,
+          DiceApp.nodes.keypad
+        );
         this.setPlaceholderText();
         this.loadInitialConfig();
         DiceApp.actions.detectInputMode();
@@ -1572,9 +1658,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       initializeUI() {
         DiceApp.ui.renderAll();
-        if (!DiceApp.ui.isKeypadMode()) {
-          DiceApp.nodes.input.focus();
-        }
+        DiceInput.focus(DiceApp.ui.isKeypadMode());
       }
     }
   };
