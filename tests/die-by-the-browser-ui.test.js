@@ -531,9 +531,10 @@ test.describe('DiceApp - Edge Cases', () => {
     // Resize to mobile
     await page.setViewportSize(MOBILE_VIEWPORT);
 
+    // Wait for the display to be visible and contain the value
     const display = page.locator('#dicePseudoInput');
-    const text = await display.textContent();
-    expect(text).toContain('3d6');
+    await expect(display).toBeVisible();
+    await expect(display).toContainText('3d6');
   });
 
   test.describe('DiceApp - Performance', () => {
