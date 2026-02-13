@@ -534,6 +534,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       currentValue: '',
       cursorPosition: 0,
       mode: 'auto', // 'auto', 'keyboard', or 'keypad'
+      resolvedMode: null, // Actual mode after resolution: 'keyboard' or 'keypad'
       rollResults: [],
       errorMessage: ''
     },
@@ -643,30 +644,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     ui: {
 
       /**
-       * Check if device should use keypad mode
+       * Check if device should use keypad mode (reads from Model only)
        * @returns {boolean}
        */
       isKeypadMode() {
         const {state} = DiceApp;
-        if (state.mode === 'keypad') return true;
-        if (state.mode === 'keyboard') return false;
-        return this.shouldUseKeypad();
-      },
-
-      shouldUseKeypad() {
-        // Match common breakpoints
-        const mobile = window.matchMedia('(max-width: 767px)').matches;
-        const tablet = window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches;
-        const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-
-        // Mobile always uses keypad
-        if (mobile) return true;
-
-        // Tablets use keypad ONLY if they have touch-only (coarse pointer)
-        if (tablet && hasCoarsePointer) return true;
-
-        // Desktop never uses keypad by default
-        return false;
+        return state.resolvedMode === 'keypad';
       },
 
       /**
@@ -866,10 +849,39 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * @param {string} mode - 'auto', 'keyboard', or 'keypad'
        */
       setMode(mode) {
-        const {state, ui} = DiceApp;
+        const {state, actions, ui} = DiceApp;
         state.mode = mode;
+        actions.detectInputMode();
         ui.renderAll();
         ui.closeMenu();
+      },
+
+      /**
+       * Detect and set the resolved input mode based on device characteristics
+       * This is the single source of truth for mode resolution (Controller layer)
+       */
+      detectInputMode() {
+        const {state} = DiceApp;
+        
+        if (state.mode === 'keyboard') {
+          state.resolvedMode = 'keyboard';
+        } else if (state.mode === 'keypad') {
+          state.resolvedMode = 'keypad';
+        } else {
+          // mode === 'auto' - detect based on device
+          const width = window.innerWidth;
+          const mobile = width <= 767;
+          const tablet = width >= 768 && width <= 1023;
+          const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+          
+          if (mobile) {
+            state.resolvedMode = 'keypad';
+          } else if (tablet && hasCoarsePointer) {
+            state.resolvedMode = 'keypad';
+          } else {
+            state.resolvedMode = 'keyboard';
+          }
+        }
       }
     },
 
@@ -1455,6 +1467,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         this.cacheDomElements();
         this.setPlaceholderText();
         this.loadInitialConfig();
+        DiceApp.actions.detectInputMode();
         DiceApp.handlers.initializeKeyMap();
         this.bindEvents();
         this.initializeUI();
@@ -1499,7 +1512,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         DiceApp.nodes.hamburger.addEventListener('click', () => DiceApp.ui.toggleMenu());
         DiceApp.nodes.menu.addEventListener('click', (e) => DiceApp.handlers.onMenuClick(e));
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
-        window.addEventListener('resize', () => DiceApp.ui.renderAll());
+        window.addEventListener('resize', () => {
+          DiceApp.actions.detectInputMode();
+          DiceApp.ui.renderAll();
+        });
         document.addEventListener('click', (e) => DiceApp.handlers.onDocumentClick(e));
 
         window.addEventListener('hashchange', () => {
