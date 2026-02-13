@@ -60,13 +60,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background:
-                    conic-gradient(from 45deg at 50% 50%,
-                    #0a0e1f 0deg,
-                    #2AE3F3 90deg,
-                    #05699f 180deg,
-                    #1a2456 270deg,
-                    #0a0e1f 360deg);
+            background: conic-gradient(from 45deg at 50% 50%,
+            #0a0e1f 0deg,
+            #2AE3F3 90deg,
+            #05699f 180deg,
+            #1a2456 270deg,
+            #0a0e1f 360deg);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -434,28 +433,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             display: none !important;
         }
 
-        /*noinspection CssUnusedSymbol*/
-        @media (max-width: 600px) {
-            .container {
-                padding: 20px;
-            }
-
-            h1 {
-                font-size: 1.5em;
-            }
-
-            body:not(.force-keyboard) .keypad {
-                display: grid;
-            }
-
-            body:not(.force-keyboard) #diceInput {
-                display: none;
-            }
-
-            body:not(.force-keyboard) #dicePseudoInput {
-                display: block;
-            }
-        }
     </style>
 </head>
 <body>
@@ -670,18 +647,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const isKeypad = this.isKeypadMode();
 
         document.body.classList.remove('force-keypad', 'force-keyboard');
-        if (state.mode === 'keypad') {
-          document.body.classList.add('force-keypad');
-        } else if (state.mode === 'keyboard') {
-          document.body.classList.add('force-keyboard');
-        }
+        document.body.classList.add(isKeypad ? 'force-keypad' : 'force-keyboard');
+        nodes.input.disabled = isKeypad;
 
-        nodes.keypad.classList.toggle('active', isKeypad);
-        nodes.display.classList.toggle('active', isKeypad);
-
-        // SYNC: Only ever Model -> DOM
-        if (!isKeypad) {
+        if (isKeypad) {
+          this.renderDisplay();
+        } else {
           nodes.input.value = state.currentValue;
+          nodes.input.setSelectionRange(state.cursorPosition, state.cursorPosition);
         }
       },
 
@@ -862,7 +835,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       detectInputMode() {
         const {state} = DiceApp;
-        
+
         if (state.mode === 'keyboard') {
           state.resolvedMode = 'keyboard';
         } else if (state.mode === 'keypad') {
@@ -873,7 +846,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const mobile = width <= 767;
           const tablet = width >= 768 && width <= 1023;
           const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-          
+
           if (mobile) {
             state.resolvedMode = 'keypad';
           } else if (tablet && hasCoarsePointer) {
@@ -1371,6 +1344,77 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.handlers.onKeyDownGlobal(fakeEvent);
               // Should not insert 'd' because Alt is pressed
               return DiceApp.state.currentValue === '' && DiceApp.state.cursorPosition === 0;
+            }
+          },
+          {
+            name: "Auto mode applies force-keypad class on mobile width",
+            test: () => {
+              const originalWidth = window.innerWidth;
+              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 400});
+              DiceApp.actions.setMode('auto');
+              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: originalWidth});
+              return document.body.classList.contains('force-keypad') &&
+                !document.body.classList.contains('force-keyboard') &&
+                DiceApp.nodes.input.disabled === true;
+            }
+          },
+          {
+            name: "Auto mode applies force-keyboard class on desktop width",
+            test: () => {
+              const originalWidth = window.innerWidth;
+              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 1200});
+              DiceApp.actions.setMode('auto');
+              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: originalWidth});
+              return document.body.classList.contains('force-keyboard') &&
+                !document.body.classList.contains('force-keypad') &&
+                DiceApp.nodes.input.disabled === false;
+            }
+          },
+          {
+            name: "Real input is disabled in keypad mode",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              return DiceApp.nodes.input.disabled === true &&
+                DiceApp.nodes.display.hidden === false &&
+                document.body.classList.contains('force-keypad');
+            }
+          },
+          {
+            name: "Real input is enabled in keyboard mode",
+            test: () => {
+              DiceApp.actions.setMode('keyboard');
+              return DiceApp.nodes.input.disabled === false &&
+                DiceApp.nodes.display.hidden === true &&
+                document.body.classList.contains('force-keyboard');
+            }
+          },
+          {
+            name: "Cursor position preserved when switching from keypad to keyboard",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 2;
+              DiceApp.ui.renderAll();
+              DiceApp.actions.setMode('keyboard');
+              return DiceApp.nodes.input.selectionStart === 2 &&
+                DiceApp.nodes.input.selectionEnd === 2;
+            }
+          },
+          {
+            name: "Input value synced from model in keyboard mode",
+            test: () => {
+              DiceApp.state.currentValue = '2d8';
+              DiceApp.actions.setMode('keyboard');
+              return DiceApp.nodes.input.value === '2d8';
+            }
+          },
+          {
+            name: "Pseudo input synced from model in keypad mode",
+            test: () => {
+              DiceApp.state.currentValue = '4d10';
+              DiceApp.state.cursorPosition = 4;
+              DiceApp.actions.setMode('keypad');
+              return DiceApp.nodes.display.innerHTML.includes('4d10');
             }
           }
         ];
