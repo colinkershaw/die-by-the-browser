@@ -1468,7 +1468,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               DiceApp.actions.setMode('keypad');
               return DiceApp.nodes.input.disabled === true &&
-                DiceApp.nodes.display.hidden === false &&
                 document.body.classList.contains('force-keypad');
             }
           },
@@ -1477,7 +1476,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               DiceApp.actions.setMode('keyboard');
               return DiceApp.nodes.input.disabled === false &&
-                DiceApp.nodes.display.hidden === true &&
                 document.body.classList.contains('force-keyboard');
             }
           },
