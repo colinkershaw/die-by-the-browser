@@ -2,6 +2,7 @@
   "type": "module",
   "scripts": {
     "test:ui": "npx playwright test",
+    "test:ui:update-snapshots": "npx playwright test --update-snapshots",
     "test:unit": "node ./tests/die-by-the-browser-unit.test.js"
   },
   "devDependencies": {
