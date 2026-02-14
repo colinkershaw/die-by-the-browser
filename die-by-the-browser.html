@@ -630,6 +630,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      */
     updateKeyboard(value, cursorPos) {
       this.keyboard.value = value;
+      this.keyboard.focus();
       this.keyboard.setSelectionRange(cursorPos, cursorPos);
     },
 
