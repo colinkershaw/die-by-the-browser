@@ -1,7 +1,8 @@
 {
   "type": "module",
   "scripts": {
-    "test": "node ./tests/die-by-the-browser-unit.test.js"
+    "test:ui": "npx playwright test",
+    "test:unit": "node ./tests/die-by-the-browser-unit.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.0",
