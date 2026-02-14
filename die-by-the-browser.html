@@ -1084,7 +1084,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "Parse single dice roll",
             test: () => {
               const result = DiceNotation.parse("3d6");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 4, sides: 6}]);
+              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}]);
             }
           },
           {
