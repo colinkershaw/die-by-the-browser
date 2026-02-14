@@ -6,101 +6,116 @@ import { dirname, resolve } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-async function runTests() {
-  // Load the HTML file
-  const html = readFileSync(resolve(__dirname, '../die-by-the-browser.html'), 'utf-8');
+/**
+ * Polyfills for JSDOM environment
+ */
+function setupPolyfills(window) {
+  polyfillMatchMedia(window);
+  polyfillHistoryAPI(window);
+}
 
-  // Create a virtual DOM
-  const dom = new JSDOM(html, {
-    runScripts: 'dangerously',
-    resources: 'usable',
-    url: 'file://' + __dirname + '/die-by-the-browser.html',
-    beforeParse(window) {
-      // Polyfill matchMedia BEFORE scripts execute
-      window.matchMedia = window.matchMedia || function(query) {
-        return {
-          matches: false,
-          media: query,
-          onchange: null,
-          addListener: () => {},
-          removeListener: () => {},
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          dispatchEvent: () => {}
-        };
-      };
+/**
+ * Polyfill matchMedia for JSDOM (not natively supported)
+ */
+function polyfillMatchMedia(window) {
+  window.matchMedia = window.matchMedia || function(query) {
+    return {
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => {}
+    };
+  };
+}
 
-      // Polyfill history methods for JSDOM
-      // JSDOM's history API throws errors with file:// protocol
-      // We'll manually update window.location.hash instead
-      const originalReplaceState = window.history.replaceState.bind(window.history);
-      const originalPushState = window.history.pushState.bind(window.history);
+/**
+ * Polyfill History API for JSDOM
+ * JSDOM's history.replaceState/pushState throw errors with file:// protocol
+ * We manually update window.location.hash as a workaround
+ */
+function polyfillHistoryAPI(window) {
+  const originalReplaceState = window.history.replaceState.bind(window.history);
+  const originalPushState = window.history.pushState.bind(window.history);
 
-      window.history.replaceState = function(state, title, url) {
-        try {
-          originalReplaceState(state, title, url);
-        } catch (e) {
-          // JSDOM limitation: manually update hash
-          if (url !== undefined && url !== null) {
-            const urlStr = String(url);
+  const updateHashOnError = (original, state, title, url) => {
+    try {
+      original(state, title, url);
+    } catch (e) {
+      // JSDOM limitation: manually update hash
+      if (url !== undefined && url !== null) {
+        const urlStr = String(url);
 
-            if (urlStr.includes('#')) {
-              // Extract hash from URL
-              const hashPart = urlStr.split('#')[1];
-              window.location.hash = hashPart || '';
-            } else if (urlStr === ' ' || urlStr === '') {
-              // Clear the hash
-              window.location.hash = '';
-            }
-          }
+        if (urlStr.includes('#')) {
+          // Extract and set hash from URL
+          window.location.hash = urlStr.split('#')[1] || '';
+        } else if (urlStr === ' ' || urlStr === '') {
+          // Clear the hash
+          window.location.hash = '';
         }
-      };
-
-      window.history.pushState = function(state, title, url) {
-        try {
-          originalPushState(state, title, url);
-        } catch (e) {
-          // JSDOM limitation: manually update hash
-          if (url !== undefined && url !== null) {
-            const urlStr = String(url);
-
-            if (urlStr.includes('#')) {
-              // Extract hash from URL
-              const hashPart = urlStr.split('#')[1];
-              window.location.hash = hashPart || '';
-            } else if (urlStr === ' ' || urlStr === '') {
-              // Clear the hash
-              window.location.hash = '';
-            }
-          }
-        }
-      };
+      }
     }
-  });
+  };
 
-  const { window } = dom;
+  window.history.replaceState = function(state, title, url) {
+    updateHashOnError(originalReplaceState, state, title, url);
+  };
 
-  // Wait for DiceApp
-  const timeout = 5000;
+  window.history.pushState = function(state, title, url) {
+    updateHashOnError(originalPushState, state, title, url);
+  };
+}
+
+/**
+ * Wait for DiceApp to initialize with timeout
+ */
+async function waitForDiceApp(window, timeoutMs = 5000) {
   const startTime = Date.now();
 
-  await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const checkReady = () => {
       const isReady = window.eval('typeof DiceApp !== "undefined" && typeof DiceApp.tests !== "undefined"');
 
       if (isReady) {
         resolve();
-      } else if (Date.now() - startTime > timeout) {
-        reject(new Error(`DiceApp failed to initialize within ${timeout}ms`));
+      } else if (Date.now() - startTime > timeoutMs) {
+        reject(new Error(`DiceApp failed to initialize within ${timeoutMs}ms`));
       } else {
-        setTimeout(checkReady, 50);
+        const retryMs = 50;
+        setTimeout(checkReady, retryMs);
       }
     };
     checkReady();
   });
+}
+
+/**
+ * Main test runner
+ */
+async function runTests() {
+  // Load the HTML file
+  const html = readFileSync(resolve(__dirname, '../die-by-the-browser.html'), 'utf-8');
+
+  // Create a virtual DOM with polyfills
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    resources: 'usable',
+    url: 'file://' + __dirname + '/die-by-the-browser.html',
+    beforeParse(window) {
+      setupPolyfills(window);
+    }
+  });
+
+  const { window } = dom;
+
+  // Wait for DiceApp to initialize
+  await waitForDiceApp(window);
 
   try {
-    // Run tests - it's async, so we need to await the Promise
+    // Run tests - HTML outputs all results
     const allPassed = await window.eval('DiceApp.tests.run()');
 
     // Exit with appropriate code (0 = success, 1 = failure)
