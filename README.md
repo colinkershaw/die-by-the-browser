@@ -22,8 +22,91 @@ A free (in all senses), lightweight, zero-dependency, single-file web utility de
 
 * **Namespace Architecture**: Organized as a modular `DiceApp` object to ensure clean separation of concerns between state management, UI rendering, and parsing logic.
 * **State-to-URL Sync**: A bidirectional synchronization logic that ensures the UI, the internal state, and the browser's navigation history stay aligned.
-* **Regex-Based Parser**: A robust parser handles standard RPG notation while strictly validating inputs to prevent broken rolls.
+* **Tokenizer-Parser-Validator-Executor Architecture**: DiceCore implements a robust multi-stage pipeline for dice notation processing (PRD#1).
 * **Dual-Input Sync**: Sophisticated event handling maintains cursor position and string integrity whether using a physical keyboard or the custom virtual keypad.
+
+## 🧪 DiceCore API (PRD#1 Implementation)
+
+DiceCore is a comprehensive dice notation engine supporting batching, aggregation/distribution, modifiers, and limits. It exposes a clean functional API using the Result/Either pattern.
+
+### API Functions
+
+```javascript
+// Tokenize input into tokens with position tracking
+DiceCore.tokenize(input) → Result(tokens)
+
+// Parse input/tokens into Abstract Syntax Tree
+DiceCore.parse(input) → Result(AST)
+
+// Validate AST with business rules (Symmetry Rule, caps, etc.)
+DiceCore.validate(input) → Result(validatedAST)
+
+// Execute validated AST to roll dice
+DiceCore.execute(input, rng?) → Result(executionResult)
+
+// Result helpers
+DiceCore.Ok(value)           // Create success result
+DiceCore.Err(error, meta)    // Create error result
+DiceCore.isOk(result)        // Check if result is Ok
+DiceCore.isErr(result)       // Check if result is Err
+DiceCore.andThen(result, fn) // Chain result operations
+```
+
+### Supported Notation (PRD#1)
+
+| Notation | Example | Description |
+|----------|---------|-------------|
+| Simple dice | `3d6` | Roll 3 six-sided dice |
+| Distributed modifier | `3d6+2` | Add 2 to each die (no space before +) |
+| Aggregated modifier | `3d6 +2` | Add 2 to total sum (space before +) |
+| Distributed with floor | `3d4-2-0` | Subtract 2 from each die, minimum 0 |
+| Aggregated with ceiling | `3d6 +5+20` | Add 5 to sum, maximum 20 |
+| Batching | `3 3d6` | Roll 3d6 three separate times |
+| Batched distributed | `2 3d4-2` | Repeat "3d4-2" twice |
+| Batched aggregated | `2 3d6 +5` | Repeat "3d6 +5" twice |
+| Multiple collections | `3d6 2d10` | Roll multiple groups |
+
+**Symmetry Rule**: Limits must match modifier operator (e.g., `-2-0` valid, `-2+0` invalid)
+
+### Running Tests
+
+**Browser Console:**
+```javascript
+window.runDiceCoreTests()
+// Returns: { total: 34, passed: 34, failed: 0, results: [...] }
+```
+
+**Node.js:**
+```bash
+node tests/run-dicecore-tests.mjs
+```
+
+**Playwright CI:**
+```javascript
+const results = await page.evaluate(() => window.runDiceCoreTests());
+expect(results.failed).toBe(0);
+expect(results.passed).toBe(34);
+```
+
+### Example Usage
+
+```javascript
+// Simple roll
+const result1 = DiceCore.execute('3d6');
+// result1.value = { collections: [...], totalValue: 10, ... }
+
+// Aggregated with ceiling
+const result2 = DiceCore.execute('4d6 +5+20');
+// result2.value = { collections: [...], absoluteRange: {...}, effectiveRange: {...} }
+
+// Batching
+const result3 = DiceCore.execute('3 3d6');
+// result3.value.collections[0].groups = [3d6 result, 3d6 result, 3d6 result]
+
+// Custom RNG for testing
+const seedRng = () => 0.5;  // Always return 0.5
+const deterministicResult = DiceCore.execute('3d6', seedRng);
+```
 
 ## 📜 License: AGPLv3 (The "Pay It Forward" Shield)
 
