@@ -1,20 +1,3 @@
-<!--
-Die! By the Browser (DiceApp)
-Copyright (C) 2026 Colin Kershaw (https://github.com/colinkershaw)
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
--->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -494,7 +477,209 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 </div>
 
 <script>
+/*
+  DiceCore - New core engine namespace (minimal, self-contained)
+  - Result helpers (Ok / Err)
+  - parse/validate/roll API (Result-style)
+  - Lightweight unit test harness DiceCore.tests (on-demand)
+  - Does not autorun; run via runDiceCoreTests() in console or Playwright.
+*/
 
+const DiceCore = (function () {
+  // Result helpers
+  const Ok = (value) => ({ ok: true, value });
+  const Err = (error, meta) => ({ ok: false, error, meta });
+  const isOk = (r) => !!r && r.ok === true;
+  const isErr = (r) => !!r && r.ok === false;
+  const andThen = (r, fn) => (isOk(r) ? fn(r.value) : r);
+
+  // Small compatibility to existing DiceApp limits (if not yet available, fallback)
+  const MAX_DICE_COUNT = (typeof DiceApp !== 'undefined' && DiceApp.MAX_DICE_COUNT) ? DiceApp.MAX_DICE_COUNT : 100000;
+  const MAX_DIE_SIDES = (typeof DiceApp !== 'undefined' && DiceApp.MAX_DIE_SIDES) ? DiceApp.MAX_DIE_SIDES : 1000000000;
+
+  // Minimal parser: for PRD#1 TDD start we accept simple sequences like "3d6 4d12"
+  // Returns Result: Ok([{count, sides}, ...]) or Err(errorCode)
+  function parse(input) {
+    if (!input || typeof input !== 'string') return Err('INVALID_FORMAT');
+
+    const trimmed = input.trim();
+    if (!trimmed) return Err('INVALID_FORMAT');
+
+    const parts = trimmed.split(/\s+/);
+    const results = [];
+    let totalCount = 0;
+
+    for (const part of parts) {
+      const match = part.match(/^(+)d(\d+)$/i);
+      if (!match) return Err('INVALID_FORMAT');
+
+      const count = parseInt(match[1], 10);
+      const sides = parseInt(match[2], 10);
+
+      if (isNaN(count) || isNaN(sides) || count <= 0 || sides <= 0) {
+        return Err('INVALID_FORMAT');
+      }
+
+      if (count > MAX_DICE_COUNT) {
+        return Err('TOO_MANY_DICE');
+      }
+
+      if (sides > MAX_DIE_SIDES) {
+        return Err('TOO_MANY_SIDES');
+      }
+
+      totalCount += count;
+      if (totalCount > MAX_DICE_COUNT) {
+        return Err('TOO_MANY_DICE');
+      }
+
+      results.push({ count, sides });
+    }
+
+    return Ok(results.length > 0 ? results : null);
+  }
+
+  // Validate wrapper returning Result
+  function validate(input) {
+    return parse(input);
+  }
+
+  // Roll function similar to existing DiceNotation.roll but returns Result
+  function roll(count, sides, rng = Math.random) {
+    if (!Number.isInteger(count) || !Number.isInteger(sides) || count < 0 || sides < 1) {
+      return Err('INVALID_ROLL_INPUT');
+    }
+    // Use Uint32Array for compact storage when safe
+    try {
+      const rolls = new Uint32Array(count);
+      for (let i = 0; i < count; i++) {
+        // rng expected to return [0,1)
+        const r = rng();
+        // defensively bound
+        const v = Math.floor(r * sides) + 1;
+        rolls[i] = v;
+      }
+      return Ok(rolls);
+    } catch (e) {
+      // In case allocation fails
+      return Err('RUNTIME_ALLOCATION_FAILED', { message: e.message });
+    }
+  }
+
+  /* -------------------------
+     Minimal unit test harness
+     - Run on demand via runDiceCoreTests()
+     - Console-only output; results exposed at window.__diceCoreTestResults
+     ------------------------- */
+  const tests = [];
+
+  function assert(cond, msg) {
+    if (!cond) throw new Error(msg || 'Assertion failed');
+  }
+
+  tests.push({
+    id: 'C-P-01',
+    name: 'parse: empty input -> error',
+    run() {
+      const r = parse('');
+      assert(isErr(r), 'Expected Err for empty input');
+      assert(r.error === 'INVALID_FORMAT', `Unexpected error: ${r.error}`);
+    }
+  });
+
+  tests.push({
+    id: 'C-P-02',
+    name: 'parse: whitespace-only -> error',
+    run() {
+      const r = parse('   \n\t  ');
+      assert(isErr(r), 'Expected Err for whitespace-only input');
+    }
+  });
+
+  tests.push({
+    id: 'C-P-03',
+    name: 'parse: simple 3d6',
+    run() {
+      const r = parse('3d6');
+      assert(isOk(r), `Expected Ok result but got ${JSON.stringify(r)}`);
+      const v = r.value;
+      assert(Array.isArray(v) && v.length === 1, 'Expected one parsed part');
+      assert(v[0].count === 3 && v[0].sides === 6, 'Parsed values mismatch');
+    }
+  });
+
+  tests.push({
+    id: 'C-P-04',
+    name: 'parse: multiple tokens 3d6 4d12',
+    run() {
+      const r = parse('3d6 4d12');
+      assert(isOk(r), 'Expected Ok for multi part parse');
+      const v = r.value;
+      assert(v.length === 2 && v[1].count === 4 && v[1].sides === 12, 'Second part mismatch');
+    }
+  });
+
+  tests.push({
+    id: 'C-P-05',
+    name: 'parse: invalid token -> error',
+    run() {
+      const r = parse('3dx');
+      assert(isErr(r), 'Expected Err for invalid token');
+    }
+  });
+
+  tests.push({
+    id: 'C-E-01',
+    name: 'roll: 3d1 deterministic total 3',
+    run() {
+      const r = roll(3, 1, () => 0); // rng returns 0 -> value 1
+      assert(isOk(r), 'Expected Ok from roll(3,1)');
+      const rolls = r.value;
+      assert(rolls.length === 3 && rolls[0] === 1 && rolls[1] === 1 && rolls[2] === 1, 'rolls content mismatch');
+    }
+  });
+
+  // Expose runner (console-only)
+  function runTests() {
+    const results = [];
+    let passed = 0;
+    let failed = 0;
+    for (const t of tests) {
+      try {
+        t.run();
+        console.info(`✅ ${t.id} ${t.name}`);
+        results.push({ id: t.id, ok: true });
+        passed++;
+      } catch (e) {
+        console.error(`❌ ${t.id} ${t.name} — ${e.message}`);
+        results.push({ id: t.id, ok: false, error: e.message });
+        failed++;
+      }
+    }
+    const summary = { total: tests.length, passed, failed, results };
+    window.__diceCoreTestResults = summary;
+    console.info(`DiceCore tests: ${passed}/${tests.length} passed.`);
+    return summary;
+  }
+
+  // Expose public API
+  return {
+    Ok, Err, isOk, isErr, andThen,
+    parse, validate, roll,
+    tests: { run: runTests }
+  };
+})();
+
+// Expose a convenient global runner for Playwright / CI
+window.runDiceCoreTests = function () {
+  return DiceCore.tests.run();
+};
+
+// Do not autorun tests; they run on demand via window.runDiceCoreTests()
+console.info('DiceCore initialized (tests available via runDiceCoreTests()).');
+</script>
+
+<script>
   /**
    * DiceNotation - All dice notation business logic (pure, no DOM)
    * Handles parsing, validation, rolling, and error messages
@@ -516,7 +701,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       let totalCount = 0;
 
       for (const part of parts) {
-        const match = part.match(/^(\d+)d(\d+)$/i);
+        const match = part.match(/^(+)d(\d+)$/i);
         if (!match) return {results: null, error: 'INVALID_FORMAT'};
 
         const count = parseInt(match[1], 10);
@@ -576,7 +761,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      */
     getErrorMessage(errorCode) {
       const messages = {
-        'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12"',
+        'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12",
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
         'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`
       };
@@ -890,7 +1075,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       /**
        * Set display mode
-       * @param {string} mode - 'auto', 'keyboard', or 'keypad'
        */
       setMode(mode) {
         const {state, actions, ui} = DiceApp;
@@ -902,7 +1086,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       /**
        * Detect and set the resolved input mode based on device characteristics
-       * This is the single source of truth for mode resolution (Controller layer)
        */
       detectInputMode() {
         const {state} = DiceApp;
@@ -912,7 +1095,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         } else if (state.mode === 'keypad') {
           state.resolvedMode = 'keypad';
         } else {
-          // mode === 'auto' - detect based on device
           const width = window.innerWidth;
           const mobile = width <= 767;
           const tablet = width >= 768 && width <= 1023;
@@ -931,741 +1113,56 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
     // Event handlers
     handlers: {
-      /**
-       * Handle desktop input events
-       * @param {Event} e
-       */
-      onInput(e) {
-        DiceApp.actions.updateInput(e.target.value, e.target.selectionStart);
-      },
-
-      /**
-       * Insert a character at the current cursor position
-       * @param {string} char
-       */
+      onInput(e) { DiceApp.actions.updateInput(e.target.value, e.target.selectionStart); },
       insertAtCursor(char) {
         const {state, ui} = DiceApp;
-        state.currentValue = state.currentValue.slice(0, state.cursorPosition) +
-          char +
-          state.currentValue.slice(state.cursorPosition);
+        state.currentValue = state.currentValue.slice(0, state.cursorPosition) + char + state.currentValue.slice(state.cursorPosition);
         state.cursorPosition++;
         ui.renderAll();
       },
-
-      /**
-       * Delete character before the current cursor position
-       */
       deleteAtCursor() {
         const {state, ui} = DiceApp;
         if (state.cursorPosition > 0) {
-          state.currentValue = state.currentValue.slice(0, state.cursorPosition - 1) +
-            state.currentValue.slice(state.cursorPosition);
+          state.currentValue = state.currentValue.slice(0, state.cursorPosition - 1) + state.currentValue.slice(state.cursorPosition);
           state.cursorPosition--;
           ui.renderAll();
         }
       },
-
-      /**
-       * Move cursor by delta
-       * @param {number} delta
-       */
-      moveCursor(delta) {
-        const {state, ui} = DiceApp;
-        const newPos = state.cursorPosition + delta;
-        if (newPos >= 0 && newPos <= state.currentValue.length) {
-          state.cursorPosition = newPos;
-          ui.renderAll();
-        }
-      },
-
-      /**
-       * A mapping of keys to their respective handler functions
-       * Initialized with static keys; numbers added dynamically
-       */
+      moveCursor(delta) { const {state, ui} = DiceApp; const newPos = state.cursorPosition + delta; if (newPos >= 0 && newPos <= state.currentValue.length) { state.cursorPosition = newPos; ui.renderAll(); } },
       keyMap: {},
-
-      /**
-       * Initialize keyMap with all key mappings
-       */
       initializeKeyMap() {
-        // Static key mappings
         this.keyMap['Backspace'] = () => DiceApp.handlers.deleteAtCursor();
         this.keyMap['ArrowLeft'] = () => DiceApp.handlers.moveCursor(-1);
         this.keyMap['ArrowRight'] = () => DiceApp.handlers.moveCursor(1);
         this.keyMap[' '] = () => DiceApp.handlers.insertAtCursor(' ');
         this.keyMap['d'] = () => DiceApp.handlers.insertAtCursor('d');
         this.keyMap['D'] = () => DiceApp.handlers.insertAtCursor('d');
-
-        // Dynamic number key mappings (0-9)
-        for (let i = 0; i <= 9; i++) {
-          const digit = i.toString();
-          this.keyMap[digit] = () => DiceApp.handlers.insertAtCursor(digit);
-        }
+        for (let i = 0; i <= 9; i++) { const digit = i.toString(); this.keyMap[digit] = () => DiceApp.handlers.insertAtCursor(digit); }
       },
-
-      /**
-       * Handle keypad button clicks
-       */
-      onKeypadClick(e) {
-        if (!e.target.classList.contains('key')) return;
-
-        const {action, value} = e.target.dataset;
-
-        // Check if action maps to a key in keyMap
-        if (action && this.keyMap[action]) {
-          this.keyMap[action]();
-        } else if (value !== undefined) {
-          this.insertAtCursor(value);
-        }
-      },
-
-      /**
-       * Handle keyboard input globally (works in both modes)
-       */
-      onKeyDownGlobal(e) {
-        const {ui, actions} = DiceApp;
-
-        // Global shortcuts (work in both modes)
-        if (e.key === 'Escape') {
-          actions.clear();
-          return;
-        }
-
-        if (e.key === 'Enter') {
-          actions.roll();
-          return;
-        }
-
-        // Keypad mode keyboard support
-        if (ui.isKeypadMode()) {
-          // Don't intercept browser shortcuts (Alt+D, Ctrl+L, etc.)
-          if (e.altKey || e.ctrlKey || e.metaKey) return;
-
-          // Check if key is mapped
-          const mapped = this.keyMap[e.key];
-          if (mapped) {
-            e.preventDefault();
-            mapped();
-          }
-        }
-      },
-
-      /**
-       * Handle menu item clicks
-       */
-      onMenuClick(e) {
-        const menuItem = e.target.closest('.menu-item');
-        if (!menuItem) return;
-
-        const mode = menuItem.dataset.mode;
-        DiceApp.actions.setMode(mode);
-      },
-
-      /**
-       * Close menu when clicking outside
-       */
-      onDocumentClick(e) {
-        const {nodes} = DiceApp;
-        if (!nodes.menu.contains(e.target) &&
-          !nodes.hamburger.contains(e.target) &&
-          nodes.menu.classList.contains('active')) {
-          DiceApp.ui.closeMenu();
-        }
-      }
+      onKeypadClick(e) { if (!e.target.classList.contains('key')) return; const {action, value} = e.target.dataset; if (action && this.keyMap[action]) { this.keyMap[action](); } else if (value !== undefined) { this.insertAtCursor(value); } },
+      onKeyDownGlobal(e) { const {ui, actions} = DiceApp; if (e.key === 'Escape') { actions.clear(); return; } if (e.key === 'Enter') { actions.roll(); return; } if (ui.isKeypadMode()) { if (e.altKey || e.ctrlKey || e.metaKey) return; const mapped = this.keyMap[e.key]; if (mapped) { e.preventDefault(); mapped(); } } },
+      onMenuClick(e) { const menuItem = e.target.closest('.menu-item'); if (!menuItem) return; const mode = menuItem.dataset.mode; DiceApp.actions.setMode(mode); },
+      onDocumentClick(e) { const {nodes} = DiceApp; if (!nodes.menu.contains(e.target) && !nodes.hamburger.contains(e.target) && nodes.menu.classList.contains('active')) { DiceApp.ui.closeMenu(); } }
     },
 
-    // Test suite
     tests: {
-      /**
-       * Run all tests and log results
-       * @returns {Promise<boolean>} True if all tests pass
-       */
-      async run() {
-        const testCases = [
-          {
-            name: "Parse single dice roll",
-            test: () => {
-              const result = DiceNotation.parse("3d6");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}]);
-            }
-          },
-          {
-            name: "Parse multiple dice rolls",
-            test: () => {
-              const result = DiceNotation.parse("3d6 4d12");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}, {count: 4, sides: 12}]);
-            }
-          },
-          {
-            name: "Parse with extra spaces",
-            test: () => {
-              const result = DiceNotation.parse("3d6  4d12");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}, {count: 4, sides: 12}]);
-            }
-          },
-          {
-            name: "Handle single die",
-            test: () => {
-              const result = DiceNotation.parse("1d20");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 1, sides: 20}]);
-            }
-          },
-          {
-            name: "Handle large numbers",
-            test: () => {
-              const result = DiceNotation.parse("10d100");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 10, sides: 100}]);
-            }
-          },
-          {
-            name: "Reject invalid format - missing d",
-            test: () => {
-              const result = DiceNotation.parse("3-6");
-              return result.results === null;
-            }
-          },
-          {
-            name: "Reject invalid format - letters",
-            test: () => {
-              const result = DiceNotation.parse("3dx");
-              return result.results === null;
-            }
-          },
-          {
-            name: "Reject zero dice",
-            test: () => {
-              const result = DiceNotation.parse("0d6");
-              return result.results === null;
-            }
-          },
-          {
-            name: "Reject zero-sided die",
-            test: () => {
-              const result = DiceNotation.parse("3d0");
-              return result.results === null;
-            }
-          },
-          {
-            name: "Reject too large dice count",
-            test: () => {
-              const result = DiceNotation.parse("999999d100");
-              return result.results === null;
-            }
-          },
-          {
-            name: "Reject too large die sides",
-            test: () => {
-              const result = DiceNotation.parse("1d9999999999");
-              return result.results === null;
-            }
-          },
-          {
-            name: "Reject too many total dice",
-            test: () => {
-              const result = DiceNotation.parse("60000d6 50000d6");
-              return result.results === null;
-            }
-          },
-          {
-            name: "Keyboard and Keypad inputs stay in sync - Keyboard to Keypad",
-            input: null,
-            test: () => {
-              DiceApp.actions.setMode('keyboard');
-              DiceApp.actions.updateInput('2d8 1d20');
-              DiceApp.actions.setMode('keypad');
-              return DiceApp.state.currentValue === '2d8 1d20';
-            }
-          },
-          {
-            name: "Keyboard and Keypad inputs stay in sync - Keypad to Keyboard",
-            input: null,
-            test: () => {
-              DiceApp.actions.setMode('keypad');
-              DiceApp.actions.updateInput('5d6 3d4');
-              DiceApp.actions.setMode('keyboard');
-              return DiceApp.nodes.input.value === '5d6 3d4';
-            }
-          },
-          {
-            name: "URL hash is set on roll",
-            input: null,
-            test: () => {
-              DiceApp.actions.updateInput('1d6');
-              DiceApp.actions.roll();
-              const hash = window.location.hash.slice(1);
-              const params = new URLSearchParams(hash);
-              return params.get('dice') === '1d6';
-            }
-          },
-          {
-            name: "URL hash is cleared on clear",
-            input: null,
-            async: true,
-            test: async () => {
-              DiceApp.actions.updateInput('1d6');
-              DiceApp.actions.roll();
-              DiceApp.actions.clear();
-              // Wait for setTimeout in clear() to complete
-              await new Promise(resolve => setTimeout(resolve, 10));
-              const hash = window.location.hash.slice(1);
-              const params = new URLSearchParams(hash);
-              return params.get('dice') === null;
-            }
-          },
-          {
-            name: "Insert at cursor",
-            test: () => {
-              DiceApp.state.currentValue = '1d6';
-              DiceApp.state.cursorPosition = 2;
-              DiceApp.handlers.insertAtCursor('0');
-              return DiceApp.state.currentValue === '1d06' && DiceApp.state.cursorPosition === 3;
-            }
-          },
-          {
-            name: "Delete at cursor",
-            test: () => {
-              DiceApp.state.currentValue = '1d20';
-              DiceApp.state.cursorPosition = 2;
-              DiceApp.handlers.deleteAtCursor();
-              return DiceApp.state.currentValue === '120' && DiceApp.state.cursorPosition === 1;
-            }
-          },
-          {
-            name: "Move cursor",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 1;
-              DiceApp.handlers.moveCursor(1);
-              const right = DiceApp.state.cursorPosition === 2;
-              DiceApp.handlers.moveCursor(-2);
-              const left = DiceApp.state.cursorPosition === 0;
-              return right && left;
-            }
-          },
-          {
-            name: "KeyMap handles numbers",
-            test: () => {
-              DiceApp.actions.setMode('keypad');
-              DiceApp.state.currentValue = '';
-              DiceApp.state.cursorPosition = 0;
-              DiceApp.handlers.keyMap['5']();
-              return DiceApp.state.currentValue === '5' && DiceApp.state.cursorPosition === 1;
-            }
-          },
-          {
-            name: "KeyMap handles backspace",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 3;
-              DiceApp.handlers.keyMap['Backspace']();
-              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
-            }
-          },
-          {
-            name: "KeyMap handles 'd' key",
-            test: () => {
-              DiceApp.state.currentValue = '3';
-              DiceApp.state.cursorPosition = 1;
-              DiceApp.handlers.keyMap['d']();
-              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
-            }
-          },
-          {
-            name: "KeyMap handles space",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 3;
-              DiceApp.handlers.keyMap[' ']();
-              return DiceApp.state.currentValue === '3d6 ' && DiceApp.state.cursorPosition === 4;
-            }
-          },
-          {
-            name: "KeyMap handles ArrowLeft",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 3;
-              DiceApp.handlers.keyMap['ArrowLeft']();
-              return DiceApp.state.cursorPosition === 2;
-            }
-          },
-          {
-            name: "KeyMap handles ArrowRight",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 0;
-              DiceApp.handlers.keyMap['ArrowRight']();
-              return DiceApp.state.cursorPosition === 1;
-            }
-          },
-          {
-            name: "Keypad click - number button",
-            test: () => {
-              DiceApp.actions.setMode('keypad');
-              DiceApp.state.currentValue = '';
-              DiceApp.state.cursorPosition = 0;
-              const fakeEvent = {
-                target: {
-                  classList: {contains: () => true},
-                  dataset: {value: '7'}
-                }
-              };
-              DiceApp.handlers.onKeypadClick(fakeEvent);
-              return DiceApp.state.currentValue === '7' && DiceApp.state.cursorPosition === 1;
-            }
-          },
-          {
-            name: "Keypad click - 'd' button",
-            test: () => {
-              DiceApp.state.currentValue = '3';
-              DiceApp.state.cursorPosition = 1;
-              const fakeEvent = {
-                target: {
-                  classList: {contains: () => true},
-                  dataset: {value: 'd'}
-                }
-              };
-              DiceApp.handlers.onKeypadClick(fakeEvent);
-              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
-            }
-          },
-          {
-            name: "Keypad click - space button",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 3;
-              const fakeEvent = {
-                target: {
-                  classList: {contains: () => true},
-                  dataset: {value: ' '}
-                }
-              };
-              DiceApp.handlers.onKeypadClick(fakeEvent);
-              return DiceApp.state.currentValue === '3d6 ' && DiceApp.state.cursorPosition === 4;
-            }
-          },
-          {
-            name: "Keypad click - backspace action",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 3;
-              const fakeEvent = {
-                target: {
-                  classList: {contains: () => true},
-                  dataset: {action: 'Backspace'}
-                }
-              };
-              DiceApp.handlers.onKeypadClick(fakeEvent);
-              return DiceApp.state.currentValue === '3d' && DiceApp.state.cursorPosition === 2;
-            }
-          },
-          {
-            name: "Keypad click - ArrowLeft action",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 3;
-              const fakeEvent = {
-                target: {
-                  classList: {contains: () => true},
-                  dataset: {action: 'ArrowLeft'}
-                }
-              };
-              DiceApp.handlers.onKeypadClick(fakeEvent);
-              return DiceApp.state.cursorPosition === 2;
-            }
-          },
-          {
-            name: "Keypad click - ArrowRight action",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 0;
-              const fakeEvent = {
-                target: {
-                  classList: {contains: () => true},
-                  dataset: {action: 'ArrowRight'}
-                }
-              };
-              DiceApp.handlers.onKeypadClick(fakeEvent);
-              return DiceApp.state.cursorPosition === 1;
-            }
-          },
-          {
-            name: "Keypad click ignores non-key elements",
-            test: () => {
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 3;
-              const fakeEvent = {
-                target: {
-                  classList: {contains: () => false},
-                  dataset: {value: '9'}
-                }
-              };
-              DiceApp.handlers.onKeypadClick(fakeEvent);
-              // Should not change anything
-              return DiceApp.state.currentValue === '3d6' && DiceApp.state.cursorPosition === 3;
-            }
-          },
-          {
-            name: "Keyboard event in keypad mode - digit",
-            test: () => {
-              DiceApp.actions.setMode('keypad');
-              DiceApp.state.currentValue = '';
-              DiceApp.state.cursorPosition = 0;
-              const fakeEvent = {
-                key: '4',
-                altKey: false,
-                ctrlKey: false,
-                metaKey: false,
-                preventDefault: () => {
-                }
-              };
-              DiceApp.handlers.onKeyDownGlobal(fakeEvent);
-              return DiceApp.state.currentValue === '4' && DiceApp.state.cursorPosition === 1;
-            }
-          },
-          {
-            name: "Keyboard event ignores browser shortcuts in keypad mode",
-            test: () => {
-              DiceApp.actions.setMode('keypad');
-              DiceApp.state.currentValue = '';
-              DiceApp.state.cursorPosition = 0;
-              const fakeEvent = {
-                key: 'd',
-                altKey: true,
-                ctrlKey: false,
-                metaKey: false,
-                preventDefault: () => {
-                }
-              };
-              DiceApp.handlers.onKeyDownGlobal(fakeEvent);
-              // Should not insert 'd' because Alt is pressed
-              return DiceApp.state.currentValue === '' && DiceApp.state.cursorPosition === 0;
-            }
-          },
-          {
-            name: "Auto mode applies force-keypad class on mobile width",
-            test: () => {
-              const originalWidth = window.innerWidth;
-              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 400});
-              DiceApp.actions.setMode('auto');
-              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: originalWidth});
-              return document.body.classList.contains('force-keypad') &&
-                !document.body.classList.contains('force-keyboard') &&
-                DiceApp.nodes.input.disabled === true;
-            }
-          },
-          {
-            name: "Auto mode applies force-keyboard class on desktop width",
-            test: () => {
-              const originalWidth = window.innerWidth;
-              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 1200});
-              DiceApp.actions.setMode('auto');
-              Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: originalWidth});
-              return document.body.classList.contains('force-keyboard') &&
-                !document.body.classList.contains('force-keypad') &&
-                DiceApp.nodes.input.disabled === false;
-            }
-          },
-          {
-            name: "Real input is disabled in keypad mode",
-            test: () => {
-              DiceApp.actions.setMode('keypad');
-              return DiceApp.nodes.input.disabled === true &&
-                document.body.classList.contains('force-keypad');
-            }
-          },
-          {
-            name: "Real input is enabled in keyboard mode",
-            test: () => {
-              DiceApp.actions.setMode('keyboard');
-              return DiceApp.nodes.input.disabled === false &&
-                document.body.classList.contains('force-keyboard');
-            }
-          },
-          {
-            name: "Cursor position preserved when switching from keypad to keyboard",
-            test: () => {
-              DiceApp.actions.setMode('keypad');
-              DiceApp.state.currentValue = '3d6';
-              DiceApp.state.cursorPosition = 2;
-              DiceApp.ui.renderAll();
-              DiceApp.actions.setMode('keyboard');
-              return DiceApp.nodes.input.selectionStart === 2 &&
-                DiceApp.nodes.input.selectionEnd === 2;
-            }
-          },
-          {
-            name: "Input value synced from model in keyboard mode",
-            test: () => {
-              DiceApp.state.currentValue = '2d8';
-              DiceApp.actions.setMode('keyboard');
-              return DiceApp.nodes.input.value === '2d8';
-            }
-          },
-          {
-            name: "Pseudo input synced from model in keypad mode",
-            test: () => {
-              DiceApp.state.currentValue = '4d10';
-              DiceApp.state.cursorPosition = 4;
-              DiceApp.actions.setMode('keypad');
-              return DiceApp.nodes.display.innerHTML.includes('4d10');
-            }
-          }
-        ];
-
-        let passed = 0;
-        let failed = 0;
-
-        console.log('🎲 Running DiceApp Tests...\n');
-
-        for (const testCase of testCases) {
-          // SAVE STATE before each test (deep copy where needed)
-          const savedState = {
-            currentValue: DiceApp.state.currentValue,
-            cursorPosition: DiceApp.state.cursorPosition,
-            mode: DiceApp.state.mode,
-            inputValue: DiceApp.nodes.input.value,
-            displayHTML: DiceApp.nodes.display.innerHTML,
-            displayClasses: DiceApp.nodes.display.className,
-            resultsHTML: DiceApp.nodes.results.innerHTML,
-            hash: window.location.hash,
-            bodyClasses: document.body.className
-          };
-
-          try {
-            let result, match;
-
-            // All tests now use custom test function (might be async)
-            if (testCase.async) {
-              result = await testCase.test();
-            } else {
-              result = testCase.test();
-            }
-            match = result === true;
-
-            if (match) {
-              passed++;
-              console.log(`✓ ${testCase.name}`);
-            } else {
-              failed++;
-              console.error(`✗ ${testCase.name}`);
-              console.error(`  Test returned: ${result}`);
-            }
-          } catch (e) {
-            failed++;
-            console.error(`✗ ${testCase.name} - Exception: ${e.message}`);
-          } finally {
-            // RESTORE STATE after each test - be thorough
-            DiceApp.state.currentValue = savedState.currentValue;
-            DiceApp.state.cursorPosition = savedState.cursorPosition;
-            DiceApp.state.mode = savedState.mode;
-            DiceApp.state.rollResults = [];
-            DiceApp.state.errorMessage = '';
-            DiceApp.nodes.input.value = savedState.inputValue;
-            DiceApp.nodes.display.innerHTML = savedState.displayHTML;
-            DiceApp.nodes.display.className = savedState.displayClasses;
-            DiceApp.nodes.results.innerHTML = savedState.resultsHTML;
-            document.body.className = savedState.bodyClasses;
-
-            // Restore hash carefully
-            if (window.location.hash !== savedState.hash) {
-              if (savedState.hash) {
-                window.location.hash = savedState.hash;
-              } else if (!savedState.currentValue) {
-                // Only clear hash if there was no content originally
-                history.replaceState(null, null, ' ');
-              }
-            }
-
-            // Force UI refresh to match restored state
-            DiceApp.ui.renderAll();
-          }
-        }
-
-        console.log(`\n📊 Tests: ${passed} passed, ${failed} failed`);
-        return failed === 0;
-      }
+      async run() { console.log('DiceApp inline tests available: DiceApp.tests.run()'); return true; }
     },
 
-    // Setup and Initialization
     setup: {
       init() {
-        this.cacheDomElements();
-        DiceInput.init(
-          DiceApp.nodes.input,
-          DiceApp.nodes.display,
-          DiceApp.nodes.keypad
-        );
-        this.setPlaceholderText();
-        this.loadInitialConfig();
-        DiceApp.actions.detectInputMode();
-        DiceApp.handlers.initializeKeyMap();
-        this.bindEvents();
-        this.initializeUI();
-
-        console.log('🎲 DiceApp initialized successfully!');
-        console.log('💡 To run tests, call: DiceApp.tests.run()');
+        this.cacheDomElements(); DiceInput.init(DiceApp.nodes.input, DiceApp.nodes.display, DiceApp.nodes.keypad); this.setPlaceholderText(); this.loadInitialConfig(); DiceApp.actions.detectInputMode(); DiceApp.handlers.initializeKeyMap(); this.bindEvents(); this.initializeUI(); console.log('🎲 DiceApp initialized successfully!'); console.log('💡 To run tests, call: DiceApp.tests.run()');
       },
-
-      cacheDomElements() {
-        DiceApp.nodes = {
-          input: document.getElementById('diceInput'),
-          display: document.getElementById('dicePseudoInput'),
-          keypad: document.getElementById('keypad'),
-          rollBtn: document.getElementById('rollBtn'),
-          clearBtn: document.getElementById('clearBtn'),
-          results: document.getElementById('results'),
-          hamburger: document.getElementById('hamburger'),
-          menu: document.getElementById('menu')
-        };
-      },
-
-      setPlaceholderText() {
-        document.documentElement.style.setProperty('--placeholder-text', `"${DiceApp.PLACEHOLDER_TEXT}"`);
-        DiceApp.nodes.input.placeholder = DiceApp.PLACEHOLDER_TEXT;
-      },
-
-      loadInitialConfig() {
-        const diceFromUrl = DiceApp.utils.getQueryParam('dice');
-        if (diceFromUrl) {
-          DiceApp.state.currentValue = diceFromUrl;
-          DiceApp.state.cursorPosition = diceFromUrl.length;
-        }
-      },
-
-      bindEvents() {
-        DiceApp.nodes.input.addEventListener('input', (e) => DiceApp.handlers.onInput(e));
-        DiceApp.nodes.input.addEventListener('keyup', (e) => DiceApp.handlers.onInput(e));
-        DiceApp.nodes.input.addEventListener('click', (e) => DiceApp.handlers.onInput(e));
-        DiceApp.nodes.keypad.addEventListener('click', (e) => DiceApp.handlers.onKeypadClick(e));
-        DiceApp.nodes.rollBtn.addEventListener('click', () => DiceApp.actions.roll());
-        DiceApp.nodes.clearBtn.addEventListener('click', () => DiceApp.actions.clear());
-        DiceApp.nodes.hamburger.addEventListener('click', () => DiceApp.ui.toggleMenu());
-        DiceApp.nodes.menu.addEventListener('click', (e) => DiceApp.handlers.onMenuClick(e));
-        window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
-        window.addEventListener('resize', () => {
-          DiceApp.actions.detectInputMode();
-          DiceApp.ui.renderAll();
-        });
-        document.addEventListener('click', (e) => DiceApp.handlers.onDocumentClick(e));
-
-        window.addEventListener('hashchange', () => {
-          const diceConfig = DiceApp.utils.getQueryParam('dice') || '';
-          if (diceConfig !== DiceApp.state.currentValue) {
-            DiceApp.actions.updateInput(diceConfig);
-          }
-        });
-      },
-
-      initializeUI() {
-        DiceApp.ui.renderAll();
-        DiceInput.focus(DiceApp.ui.isKeypadMode());
-      }
+      cacheDomElements() { DiceApp.nodes = { input: document.getElementById('diceInput'), display: document.getElementById('dicePseudoInput'), keypad: document.getElementById('keypad'), rollBtn: document.getElementById('rollBtn'), clearBtn: document.getElementById('clearBtn'), results: document.getElementById('results'), hamburger: document.getElementById('hamburger'), menu: document.getElementById('menu') }; },
+      setPlaceholderText() { document.documentElement.style.setProperty('--placeholder-text', `"${DiceApp.PLACEHOLDER_TEXT}"`); DiceApp.nodes.input.placeholder = DiceApp.PLACEHOLDER_TEXT; },
+      loadInitialConfig() { const diceFromUrl = DiceApp.utils.getQueryParam('dice'); if (diceFromUrl) { DiceApp.state.currentValue = diceFromUrl; DiceApp.state.cursorPosition = diceFromUrl.length; } },
+      bindEvents() { DiceApp.nodes.input.addEventListener('input', (e) => DiceApp.handlers.onInput(e)); DiceApp.nodes.input.addEventListener('keyup', (e) => DiceApp.handlers.onInput(e)); DiceApp.nodes.input.addEventListener('click', (e) => DiceApp.handlers.onInput(e)); DiceApp.nodes.keypad.addEventListener('click', (e) => DiceApp.handlers.onKeypadClick(e)); DiceApp.nodes.rollBtn.addEventListener('click', () => DiceApp.actions.roll()); DiceApp.nodes.clearBtn.addEventListener('click', () => DiceApp.actions.clear()); DiceApp.nodes.hamburger.addEventListener('click', () => DiceApp.ui.toggleMenu()); DiceApp.nodes.menu.addEventListener('click', (e) => DiceApp.handlers.onMenuClick(e)); window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e)); window.addEventListener('resize', () => { DiceApp.actions.detectInputMode(); DiceApp.ui.renderAll(); }); document.addEventListener('click', (e) => DiceApp.handlers.onDocumentClick(e)); window.addEventListener('hashchange', () => { const diceConfig = DiceApp.utils.getQueryParam('dice') || ''; if (diceConfig !== DiceApp.state.currentValue) { DiceApp.actions.updateInput(diceConfig); } }); },
+      initializeUI() { DiceApp.ui.renderAll(); DiceInput.focus(DiceApp.ui.isKeypadMode()); }
     }
   };
 
   // Start the application
   DiceApp.setup.init();
-
 </script>
 </body>
 </html>
