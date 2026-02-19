@@ -1,3 +1,35 @@
+<!--
+  Die! By the Browser - Dice Rolling Application
+  Copyright (C) 2026 Colin Kershaw
+  
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published
+  by the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU Affero General Public License for more details.
+  
+  You should have received a copy of the GNU Affero General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/>.
+  
+  ============================================================================
+  
+  ARCHITECTURE NOTE:
+  This application implements a comprehensive dice notation engine (DiceCore)
+  using a tokenizer → parser → validator → executor pipeline as specified
+  in PRD#1. The implementation supports:
+  - Batching (e.g., "3 3d6" rolls 3d6 three times)
+  - Distributed modifiers (e.g., "3d6+2" applies +2 to each die)
+  - Aggregated modifiers (e.g., "3d6 +2" applies +2 to sum)
+  - Limits with Symmetry Rule (e.g., "3d6-2-0" with floor)
+  
+  For API documentation and usage examples, see README.md or run
+  window.runDiceCoreTests() in the browser console.
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -761,7 +793,7 @@ console.info('DiceCore initialized (tests available via runDiceCoreTests()).');
      */
     getErrorMessage(errorCode) {
       const messages = {
-        'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12",
+        'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12".',
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
         'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`
       };
