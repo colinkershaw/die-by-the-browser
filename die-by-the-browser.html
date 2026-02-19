@@ -701,7 +701,7 @@ console.info('DiceCore initialized (tests available via runDiceCoreTests()).');
       let totalCount = 0;
 
       for (const part of parts) {
-        const match = part.match(/^(+)d(\d+)$/i);
+        const match = part.match(/^(\d+)d(\d+)$/i);
         if (!match) return {results: null, error: 'INVALID_FORMAT'};
 
         const count = parseInt(match[1], 10);
@@ -761,7 +761,7 @@ console.info('DiceCore initialized (tests available via runDiceCoreTests()).');
      */
     getErrorMessage(errorCode) {
       const messages = {
-        'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12",
+        'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12".',
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
         'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`
       };
