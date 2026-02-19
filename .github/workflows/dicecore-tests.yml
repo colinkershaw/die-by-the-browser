@@ -1,0 +1,41 @@
+name: DiceCore CI
+
+on:
+  push:
+    branches: [ 'copilot/refactor-dice-notation-parser' ]
+  pull_request:
+    branches: [ 'main' ]
+
+jobs:
+  test:
+    name: Node & Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: |
+          if [ -f tests/run-dicecore-tests.mjs ]; then
+            node tests/run-dicecore-tests.mjs
+          else
+            echo "tests/run-dicecore-tests.mjs not found, skipping."
+          fi
+      - run: |
+          if [ -f package.json ]; then
+            npm test --if-present
+          else
+            echo "package.json not found, skipping npm test."
+          fi
+      - run: npx playwright install --with-deps
+      - run: |
+          if [ -f playwright.config.js ] || ls tests/*.spec.* >/dev/null 2>&1; then
+            npx playwright test --reporter=list
+          else
+            echo "No Playwright tests detected, skipping."
+          fi
+      - if: always()
+        run: echo "DiceCore CI finished; view logs for details"
