@@ -1,0 +1,30 @@
+name: DiceApp CI
+
+on:
+  push:
+    branches: [ 'main']
+  pull_request:
+    branches: [ 'main' ]
+
+jobs:
+  test:
+    name: Node & Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: |
+          if [ -f package.json ]; then
+            npm test --if-present
+          else
+            echo "package.json not found, skipping npm test."
+          fi
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --reporter=list
+      - if: always()
+        run: echo "DiceApp CI finished; view logs for details"
