@@ -586,10 +586,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           modifier = parseInt(modSign + diceMatch[5], 10);
           modifierMode = 'distributed';
           if (diceMatch[6]) {
-            const limSign = diceMatch[7];
-            if (limSign !== modSign) return {collections: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
-            limit = parseInt(diceMatch[8], 10);
-            limitSign = limSign;
+            const lim = DiceNotation._parseLimit(modSign, diceMatch[7], diceMatch[8]);
+            if (lim.error) return {collections: null, error: lim.error};
+            ({limit, limitSign} = lim);
           }
         }
         i++;
@@ -602,10 +601,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             modifier = parseInt(modSign + aggMatch[2], 10);
             modifierMode = 'aggregated';
             if (aggMatch[3]) {
-              const limSign = aggMatch[4];
-              if (limSign !== modSign) return {collections: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
-              limit = parseInt(aggMatch[5], 10);
-              limitSign = limSign;
+              const lim = DiceNotation._parseLimit(modSign, aggMatch[4], aggMatch[5]);
+              if (lim.error) return {collections: null, error: lim.error};
+              ({limit, limitSign} = lim);
             }
             i++;
           }
@@ -625,6 +623,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     validate(input) {
       const {collections, error} = this.parse(input);
       return {valid: collections !== null, error};
+    },
+
+    /**
+     * Parse and validate a limit token, enforcing the symmetry rule.
+     * @param {string} modSign - '+' or '-' (the modifier's sign)
+     * @param {string} limSign - '+' or '-' (the limit's sign)
+     * @param {string} limitVal - Numeric string for the limit value
+     * @returns {Object} {limit, limitSign} on success, or {error} on failure
+     */
+    _parseLimit(modSign, limSign, limitVal) {
+      if (limSign !== modSign) return {error: 'INVALID_OPERATOR_FOR_LIMIT'};
+      return {limit: parseInt(limitVal, 10), limitSign: limSign};
     },
 
     /**
@@ -940,8 +950,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         </div>
       `;
             } else if (r.mode === 'aggregated') {
-              const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
-              const mathStr = `(${r.rawSum}) ${modStr} = ${r.total}${r.indicator}`;
+              const mathStr = r.modifier >= 0
+                ? `(${r.rawSum}) + ${r.modifier} = ${r.total}${r.indicator}`
+                : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${r.total}${r.indicator}`;
               let rangeHTML = '';
               if (r.rangeLimit) {
                 rangeHTML = `
