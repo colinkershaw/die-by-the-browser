@@ -307,6 +307,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             background: #2d3748;
         }
 
+        .key.operator {
+            background: #4a5568;
+            color: #2AE3F3;
+        }
+
+        .key.operator:hover {
+            background: #2d3748;
+        }
+
         .button-group {
             display: flex;
             gap: 10px;
@@ -400,6 +409,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             margin-top: 5px;
         }
 
+        .result-math {
+            font-size: 0.9em;
+            color: #a0aec0;
+            margin-top: 5px;
+            font-family: 'Courier New', monospace;
+        }
+
         .error {
             color: #ff8a80;
             text-align: center;
@@ -480,6 +496,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         <button class="key special" data-value="d">d</button>
         <button class="key" data-value="0">0</button>
         <button class="key special" data-value=" ">␣</button>
+        <button class="key operator" data-value="-">-</button>
+        <button class="key operator" data-value="+">+</button>
+        <button class="key operator" data-value="!">!</button>
         <button class="key nav" data-action="ArrowLeft">←</button>
         <button class="key delete" data-action="Backspace">⌫</button>
         <button class="key nav" data-action="ArrowRight">→</button>
@@ -497,66 +516,119 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
   /**
    * DiceNotation - All dice notation business logic (pure, no DOM)
-   * Handles parsing, validation, rolling, and error messages
+   * Handles parsing, validation, rolling, and error messages.
+   *
+   * Supported notation (PRD #1):
+   *   NdX                   - basic roll
+   *   NdX-M / NdX+M         - distributed modifier (applied to each die)
+   *   NdX-M-F / NdX+M+C     - distributed modifier with floor/ceiling limit
+   *   NdX -M / NdX +M       - aggregated modifier (applied to sum)
+   *   NdX -M-F / NdX +M+C   - aggregated modifier with floor/ceiling limit
+   *   B NdX[...]             - batch: roll the expression B times
+   *   Multiple collections separated by spaces
+   *
+   * Symmetry Rule: the limit sign must match the modifier sign.
    */
   const DiceNotation = {
     /**
-     * Parse dice notation string into structured data
-     * @param {string} input - Notation like "3d6 4d12"
-     * @returns {Object} {results, error}
+     * Parse dice notation string into structured collection data.
+     * @param {string} input - Notation like "3d6 4d12" or "2 3d4-2-0"
+     * @returns {Object} {collections: Array|null, error: string|null}
      */
     parse(input) {
-      if (!input || typeof input !== 'string') return {results: null, error: 'INVALID_FORMAT'};
+      if (!input || typeof input !== 'string') return {collections: null, error: 'INVALID_FORMAT'};
 
       const trimmed = input.trim();
-      if (!trimmed) return {results: null, error: 'INVALID_FORMAT'};
+      if (!trimmed) return {collections: null, error: 'INVALID_FORMAT'};
 
-      const parts = trimmed.split(/\s+/);
-      const results = [];
+      const tokens = trimmed.split(/\s+/);
+      const collections = [];
+      let i = 0;
       let totalCount = 0;
 
-      for (const part of parts) {
-        const match = part.match(/^(\d+)d(\d+)$/i);
-        if (!match) return {results: null, error: 'INVALID_FORMAT'};
+      // Token patterns
+      const pureIntRe = /^\d+$/;
+      const diceRe = /^(\d+)d(\d+)(([+-])(\d+)(([+-])(\d+))?)?$/i;
+      const aggModRe = /^([+-])(\d+)(([+-])(\d+))?$/;
 
-        const count = parseInt(match[1], 10);
-        const sides = parseInt(match[2], 10);
-
-        if (isNaN(count) || isNaN(sides) || count <= 0 || sides <= 0) {
-          return {results: null, error: 'INVALID_FORMAT'};
+      while (i < tokens.length) {
+        // Check for optional batch count (pure integer, no 'd')
+        let batchCount = 1;
+        if (pureIntRe.test(tokens[i])) {
+          batchCount = parseInt(tokens[i], 10);
+          i++;
+          if (batchCount <= 0) return {collections: null, error: 'INVALID_FORMAT'};
+          if (i >= tokens.length) return {collections: null, error: 'INVALID_FORMAT'};
         }
 
-        if (count > DiceApp.MAX_DICE_COUNT) {
-          return {results: null, error: 'TOO_MANY_DICE'};
+        // Parse dice token (may include attached distributed modifier+limit)
+        const diceMatch = tokens[i].match(diceRe);
+        if (!diceMatch) return {collections: null, error: 'INVALID_FORMAT'};
+
+        const count = parseInt(diceMatch[1], 10);
+        const sides = parseInt(diceMatch[2], 10);
+
+        if (count <= 0 || sides <= 0) return {collections: null, error: 'INVALID_FORMAT'};
+        if (count > DiceApp.MAX_DICE_COUNT) return {collections: null, error: 'TOO_MANY_DICE'};
+        if (sides > DiceApp.MAX_DIE_SIDES) return {collections: null, error: 'TOO_MANY_SIDES'};
+
+        totalCount += count * batchCount;
+        if (totalCount > DiceApp.MAX_DICE_COUNT) return {collections: null, error: 'TOO_MANY_DICE'};
+
+        let modifier = 0;
+        let limit = null;
+        let limitSign = null;
+        let modifierMode = 'none';
+
+        if (diceMatch[3]) {
+          // Distributed modifier attached directly to dice token (no space)
+          const modSign = diceMatch[4];
+          modifier = parseInt(modSign + diceMatch[5], 10);
+          modifierMode = 'distributed';
+          if (diceMatch[6]) {
+            const limSign = diceMatch[7];
+            if (limSign !== modSign) return {collections: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
+            limit = parseInt(diceMatch[8], 10);
+            limitSign = limSign;
+          }
+        }
+        i++;
+
+        // Check for space-separated aggregated modifier (only if no distributed modifier)
+        if (i < tokens.length && modifierMode === 'none') {
+          const aggMatch = tokens[i].match(aggModRe);
+          if (aggMatch) {
+            const modSign = aggMatch[1];
+            modifier = parseInt(modSign + aggMatch[2], 10);
+            modifierMode = 'aggregated';
+            if (aggMatch[3]) {
+              const limSign = aggMatch[4];
+              if (limSign !== modSign) return {collections: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
+              limit = parseInt(aggMatch[5], 10);
+              limitSign = limSign;
+            }
+            i++;
+          }
         }
 
-        if (sides > DiceApp.MAX_DIE_SIDES) {
-          return {results: null, error: 'TOO_MANY_SIDES'};
-        }
-
-        totalCount += count;
-        if (totalCount > DiceApp.MAX_DICE_COUNT) {
-          return {results: null, error: 'TOO_MANY_DICE'};
-        }
-
-        results.push({count, sides});
+        collections.push({batchCount, count, sides, modifier, limit, limitSign, modifierMode});
       }
 
-      return {results: results.length > 0 ? results : null, error: null};
+      return {collections: collections.length > 0 ? collections : null, error: null};
     },
 
     /**
-     * Validate dice notation without parsing
+     * Validate dice notation without rolling
      * @param {string} input
      * @returns {Object} {valid: boolean, error: string|null}
      */
     validate(input) {
-      const {results, error} = this.parse(input);
-      return {valid: results !== null, error};
+      const {collections, error} = this.parse(input);
+      return {valid: collections !== null, error};
     },
 
     /**
-     * Roll dice and return results
+     * Roll dice and return raw results
      * @param {number} count - Number of dice
      * @param {number} sides - Sides per die
      * @returns {Uint32Array} Individual roll results
@@ -570,6 +642,92 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     },
 
     /**
+     * Build a display formula string from parsed collection fields
+     * @param {number} count
+     * @param {number} sides
+     * @param {number} modifier
+     * @param {number|null} limit
+     * @param {string|null} limitSign - '+' or '-'
+     * @param {string} modifierMode - 'none'|'distributed'|'aggregated'
+     * @returns {string}
+     */
+    buildFormula(count, sides, modifier, limit, limitSign, modifierMode) {
+      let s = `${count}d${sides}`;
+      if (modifierMode !== 'none') {
+        const modStr = modifier >= 0 ? `+${modifier}` : `${modifier}`;
+        s += modifierMode === 'aggregated' ? ` ${modStr}` : modStr;
+        if (limit !== null) {
+          s += `${limitSign}${limit}`;
+        }
+      }
+      return s;
+    },
+
+    /**
+     * Compute roll result with modifier/limit applied.
+     * @param {Uint32Array} rawRolls - Raw die values
+     * @param {Object} opts - {count, sides, modifier, limit, limitSign, modifierMode}
+     * @returns {Object} Result object (mode-specific shape)
+     */
+    computeResult(rawRolls, {count, sides, modifier, limit, limitSign, modifierMode}) {
+      const formula = DiceNotation.buildFormula(count, sides, modifier, limit, limitSign, modifierMode);
+
+      if (modifierMode === 'none') {
+        const rolls = Array.from(rawRolls);
+        const total = rolls.reduce((s, v) => s + v, 0);
+        return {formula, mode: 'none', rolls, total, min: count, max: count * sides};
+      }
+
+      if (modifierMode === 'distributed') {
+        const dieResults = Array.from(rawRolls).map(raw => {
+          const modified = raw + modifier;
+          let result = modified;
+          let indicator = '';
+          if (limit !== null) {
+            if (limitSign === '-' && modified < limit) {
+              result = limit;
+              indicator = '*'; // raised to floor
+            } else if (limitSign === '+' && modified > limit) {
+              result = limit;
+              indicator = '^'; // lowered to ceiling
+            }
+          }
+          return {raw, result, indicator};
+        });
+        const total = dieResults.reduce((s, d) => s + d.result, 0);
+        return {formula, mode: 'distributed', dieResults, total, modifier};
+      }
+
+      // aggregated mode
+      const rolls = Array.from(rawRolls);
+      const rawSum = rolls.reduce((s, v) => s + v, 0);
+      const modifiedSum = rawSum + modifier;
+      let total = modifiedSum;
+      let indicator = '';
+      if (limit !== null) {
+        if (limitSign === '-' && modifiedSum < limit) {
+          total = limit;
+          indicator = '*'; // raised to floor
+        } else if (limitSign === '+' && modifiedSum > limit) {
+          total = limit;
+          indicator = '^'; // lowered to ceiling
+        }
+      }
+      const rawMin = count;
+      const rawMax = count * sides;
+      const rangeAbs = {min: rawMin + modifier, max: rawMax + modifier};
+      let rangeLimit = null;
+      if (limit !== null) {
+        if (limitSign === '-') {
+          rangeLimit = {min: Math.max(limit, rawMin + modifier), max: rawMax + modifier};
+        } else {
+          rangeLimit = {min: rawMin + modifier, max: Math.min(limit, rawMax + modifier)};
+        }
+      }
+      return {formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeAbs, rangeLimit};
+    },
+
+    /**
      * Get user-friendly error message
      * @param {string} errorCode
      * @returns {string}
@@ -578,7 +736,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       const messages = {
         'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12"',
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
-        'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`
+        'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`,
+        'INVALID_OPERATOR_FOR_LIMIT': 'Invalid operator for limit. Limit sign must match modifier sign (e.g., 3d6-5-1 or 3d6+5+10).'
       };
       return messages[errorCode] || 'Unknown error';
     }
@@ -669,7 +828,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
    */
   const DiceApp = {
     // Configuration
-    PLACEHOLDER_TEXT: "e.g., 3d6 4d12 (# of dice + 'd' + die size)",
+    PLACEHOLDER_TEXT: "e.g., 3d6 2 3d4-2-0 4d6 +5+20",
     MAX_DICE_COUNT: 100000,
     MAX_DIE_SIDES: 1000000000,
 
@@ -767,14 +926,48 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (state.errorMessage) {
           newHTML = `<div class="error">${state.errorMessage}</div>`;
         } else {
-          newHTML = state.rollResults.map(r => `
+          newHTML = state.rollResults.map(r => {
+            if (r.mode === 'distributed') {
+              const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
+              const rollsDisplay = r.dieResults.map(d =>
+                `${d.result}${d.indicator}=[${d.raw}${modStr}]`
+              ).join(' ');
+              return `
+        <div class="result-item">
+          <div class="result-formula">${r.formula}</div>
+          <div class="result-value">Total: ${r.total}</div>
+          <div class="result-rolls">Rolls: ${rollsDisplay}</div>
+        </div>
+      `;
+            } else if (r.mode === 'aggregated') {
+              const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
+              const mathStr = `(${r.rawSum}) ${modStr} = ${r.total}${r.indicator}`;
+              let rangeHTML = '';
+              if (r.rangeLimit) {
+                rangeHTML = `
+          <div class="result-range">Range (Limit): ${r.rangeLimit.min}–${r.rangeLimit.max}</div>
+          <div class="result-range">Range (Abs): ${r.rangeAbs.min}–${r.rangeAbs.max}</div>`;
+              }
+              return `
+        <div class="result-item">
+          <div class="result-formula">${r.formula}</div>
+          <div class="result-value">Total: ${r.total}${r.indicator}</div>
+          <div class="result-math">Math: ${mathStr}</div>${rangeHTML}
+          <div class="result-rolls">Rolls: ${r.rolls.join(' ')}</div>
+        </div>
+      `;
+            } else {
+              // mode === 'none' (basic roll, no modifier)
+              return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
           <div class="result-value">Total: ${r.total}</div>
           <div class="result-rolls">Rolls: ${r.rolls.join(' ')}</div>
           <div class="result-range">Range: ${r.min}–${r.max}</div>
         </div>
-      `).join('');
+      `;
+            }
+          }).join('');
         }
 
         // Only update DOM if content has changed to avoid "jumping" on every keystroke
@@ -840,7 +1033,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       roll() {
         const {state, utils, ui} = DiceApp;
         const notation = state.currentValue;
-        const {results: parsed, error} = DiceNotation.parse(notation);
+        const {collections: parsed, error} = DiceNotation.parse(notation);
 
         if (!parsed) {
           state.errorMessage = DiceNotation.getErrorMessage(error);
@@ -850,20 +1043,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         state.errorMessage = '';
-        state.rollResults = parsed.map(({count, sides}) => {
-          const rolls = DiceNotation.roll(count, sides);
-          let total = 0;
-          for (let i = 0; i < rolls.length; i++) {
-            total += rolls[i];
+        state.rollResults = [];
+
+        for (const coll of parsed) {
+          const {batchCount, count, sides, modifier, limit, limitSign, modifierMode} = coll;
+          for (let b = 0; b < batchCount; b++) {
+            const rawRolls = DiceNotation.roll(count, sides);
+            const result = DiceNotation.computeResult(rawRolls, {count, sides, modifier, limit, limitSign, modifierMode});
+            state.rollResults.push(result);
           }
-          return {
-            formula: `${count}d${sides}`,
-            rolls,
-            total,
-            min: count,
-            max: count * sides
-          };
-        });
+        }
 
         utils.setQueryParam('dice', notation);
         ui.renderAll();
@@ -995,6 +1184,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         this.keyMap[' '] = () => DiceApp.handlers.insertAtCursor(' ');
         this.keyMap['d'] = () => DiceApp.handlers.insertAtCursor('d');
         this.keyMap['D'] = () => DiceApp.handlers.insertAtCursor('d');
+        this.keyMap['-'] = () => DiceApp.handlers.insertAtCursor('-');
+        this.keyMap['+'] = () => DiceApp.handlers.insertAtCursor('+');
+        this.keyMap['!'] = () => DiceApp.handlers.insertAtCursor('!');
 
         // Dynamic number key mappings (0-9)
         for (let i = 0; i <= 9; i++) {
@@ -1086,84 +1278,373 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "Parse single dice roll",
             test: () => {
               const result = DiceNotation.parse("3d6");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}]);
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].count === 3 && c[0].sides === 6 &&
+                c[0].batchCount === 1 && c[0].modifierMode === 'none';
             }
           },
           {
             name: "Parse multiple dice rolls",
             test: () => {
               const result = DiceNotation.parse("3d6 4d12");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}, {count: 4, sides: 12}]);
+              const c = result.collections;
+              return c !== null && c.length === 2 &&
+                c[0].count === 3 && c[0].sides === 6 &&
+                c[1].count === 4 && c[1].sides === 12;
             }
           },
           {
             name: "Parse with extra spaces",
             test: () => {
               const result = DiceNotation.parse("3d6  4d12");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 3, sides: 6}, {count: 4, sides: 12}]);
+              const c = result.collections;
+              return c !== null && c.length === 2 &&
+                c[0].count === 3 && c[0].sides === 6 &&
+                c[1].count === 4 && c[1].sides === 12;
             }
           },
           {
             name: "Handle single die",
             test: () => {
               const result = DiceNotation.parse("1d20");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 1, sides: 20}]);
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].count === 1 && c[0].sides === 20;
             }
           },
           {
             name: "Handle large numbers",
             test: () => {
               const result = DiceNotation.parse("10d100");
-              return JSON.stringify(result.results) === JSON.stringify([{count: 10, sides: 100}]);
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].count === 10 && c[0].sides === 100;
             }
           },
           {
             name: "Reject invalid format - missing d",
             test: () => {
               const result = DiceNotation.parse("3-6");
-              return result.results === null;
+              return result.collections === null;
             }
           },
           {
             name: "Reject invalid format - letters",
             test: () => {
               const result = DiceNotation.parse("3dx");
-              return result.results === null;
+              return result.collections === null;
             }
           },
           {
             name: "Reject zero dice",
             test: () => {
               const result = DiceNotation.parse("0d6");
-              return result.results === null;
+              return result.collections === null;
             }
           },
           {
             name: "Reject zero-sided die",
             test: () => {
               const result = DiceNotation.parse("3d0");
-              return result.results === null;
+              return result.collections === null;
             }
           },
           {
             name: "Reject too large dice count",
             test: () => {
               const result = DiceNotation.parse("999999d100");
-              return result.results === null;
+              return result.collections === null;
             }
           },
           {
             name: "Reject too large die sides",
             test: () => {
               const result = DiceNotation.parse("1d9999999999");
-              return result.results === null;
+              return result.collections === null;
             }
           },
           {
             name: "Reject too many total dice",
             test: () => {
               const result = DiceNotation.parse("60000d6 50000d6");
-              return result.results === null;
+              return result.collections === null;
+            }
+          },
+          {
+            name: "Parse distributed modifier (penalty)",
+            test: () => {
+              const result = DiceNotation.parse("3d4-3");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === -3 && c[0].modifierMode === 'distributed' && c[0].limit === null;
+            }
+          },
+          {
+            name: "Parse distributed modifier with floor",
+            test: () => {
+              const result = DiceNotation.parse("3d4-3-1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === -3 && c[0].limit === 1 && c[0].limitSign === '-' &&
+                c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse distributed bonus modifier",
+            test: () => {
+              const result = DiceNotation.parse("3d4+5");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 5 && c[0].modifierMode === 'distributed' && c[0].limit === null;
+            }
+          },
+          {
+            name: "Parse distributed bonus with ceiling",
+            test: () => {
+              const result = DiceNotation.parse("3d4+5+10");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 5 && c[0].limit === 10 && c[0].limitSign === '+' &&
+                c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse aggregated modifier (penalty)",
+            test: () => {
+              const result = DiceNotation.parse("3d4 -3");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === -3 && c[0].modifierMode === 'aggregated' && c[0].limit === null;
+            }
+          },
+          {
+            name: "Parse aggregated modifier with floor",
+            test: () => {
+              const result = DiceNotation.parse("3d4 -3-1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === -3 && c[0].limit === 1 && c[0].limitSign === '-' &&
+                c[0].modifierMode === 'aggregated';
+            }
+          },
+          {
+            name: "Parse aggregated bonus modifier",
+            test: () => {
+              const result = DiceNotation.parse("3d4 +5");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 5 && c[0].modifierMode === 'aggregated' && c[0].limit === null;
+            }
+          },
+          {
+            name: "Parse aggregated bonus with ceiling",
+            test: () => {
+              const result = DiceNotation.parse("4d6 +5+20");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 5 && c[0].limit === 20 && c[0].limitSign === '+' &&
+                c[0].modifierMode === 'aggregated';
+            }
+          },
+          {
+            name: "Reject invalid limit operator - symmetry rule (+ modifier, - limit)",
+            test: () => {
+              const result = DiceNotation.parse("3d6+5-1");
+              return result.collections === null && result.error === 'INVALID_OPERATOR_FOR_LIMIT';
+            }
+          },
+          {
+            name: "Reject invalid limit operator - symmetry rule (- modifier, + limit)",
+            test: () => {
+              const result = DiceNotation.parse("3d6-5+1");
+              return result.collections === null && result.error === 'INVALID_OPERATOR_FOR_LIMIT';
+            }
+          },
+          {
+            name: "Reject invalid limit operator - aggregated symmetry",
+            test: () => {
+              const result = DiceNotation.parse("3d6 +5-1");
+              return result.collections === null && result.error === 'INVALID_OPERATOR_FOR_LIMIT';
+            }
+          },
+          {
+            name: "Parse batch count",
+            test: () => {
+              const result = DiceNotation.parse("2 3d6");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].batchCount === 2 && c[0].count === 3 && c[0].sides === 6;
+            }
+          },
+          {
+            name: "Parse batch with distributed modifier",
+            test: () => {
+              const result = DiceNotation.parse("2 3d4-2-0");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].batchCount === 2 && c[0].modifier === -2 && c[0].limit === 0 &&
+                c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse batch with aggregated modifier",
+            test: () => {
+              const result = DiceNotation.parse("2 3d4 -2-0");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].batchCount === 2 && c[0].modifier === -2 && c[0].limit === 0 &&
+                c[0].modifierMode === 'aggregated';
+            }
+          },
+          {
+            name: "Parse multiple collections with batch counts",
+            test: () => {
+              const result = DiceNotation.parse("3 3d6 2 3d4");
+              const c = result.collections;
+              return c !== null && c.length === 2 &&
+                c[0].batchCount === 3 && c[0].count === 3 && c[0].sides === 6 &&
+                c[1].batchCount === 2 && c[1].count === 3 && c[1].sides === 4;
+            }
+          },
+          {
+            name: "Reject batch count without following dice token",
+            test: () => {
+              const result = DiceNotation.parse("3");
+              return result.collections === null;
+            }
+          },
+          {
+            name: "computeResult - distributed penalty with floor (indicator *)",
+            test: () => {
+              // 3d4-3-1: rolls [4, 1, 2], floor=1
+              // die=4: 4-3=1 (not clamped), die=1: 1-3=-2 → clamp to 1 (*), die=2: 2-3=-1 → clamp to 1 (*)
+              const result = DiceNotation.computeResult([4, 1, 2], {
+                count: 3, sides: 4, modifier: -3, limit: 1, limitSign: '-', modifierMode: 'distributed'
+              });
+              const d = result.dieResults;
+              return result.mode === 'distributed' &&
+                d[0].result === 1 && d[0].indicator === '' &&
+                d[1].result === 1 && d[1].indicator === '*' &&
+                d[2].result === 1 && d[2].indicator === '*' &&
+                result.total === 3;
+            }
+          },
+          {
+            name: "computeResult - distributed bonus with ceiling (indicator ^)",
+            test: () => {
+              // 2d4+5+7: rolls [3, 4], ceiling=7
+              // die=3: 3+5=8 → clamp to 7 (^), die=4: 4+5=9 → clamp to 7 (^)
+              const result = DiceNotation.computeResult([3, 4], {
+                count: 2, sides: 4, modifier: 5, limit: 7, limitSign: '+', modifierMode: 'distributed'
+              });
+              const d = result.dieResults;
+              return result.mode === 'distributed' &&
+                d[0].result === 7 && d[0].indicator === '^' &&
+                d[1].result === 7 && d[1].indicator === '^' &&
+                result.total === 14;
+            }
+          },
+          {
+            name: "computeResult - distributed no clamp (no indicator)",
+            test: () => {
+              // 2d6-2 (no limit): rolls [4, 3] → 4-2=2, 3-2=1
+              const result = DiceNotation.computeResult([4, 3], {
+                count: 2, sides: 6, modifier: -2, limit: null, limitSign: null, modifierMode: 'distributed'
+              });
+              const d = result.dieResults;
+              return result.mode === 'distributed' &&
+                d[0].result === 2 && d[0].indicator === '' &&
+                d[1].result === 1 && d[1].indicator === '' &&
+                result.total === 3;
+            }
+          },
+          {
+            name: "computeResult - aggregated penalty with floor (indicator *)",
+            test: () => {
+              // 3d4 -5-3: rolls [1, 1, 1], rawSum=3, 3-5=-2 < floor=3 → total=3 (*)
+              const result = DiceNotation.computeResult([1, 1, 1], {
+                count: 3, sides: 4, modifier: -5, limit: 3, limitSign: '-', modifierMode: 'aggregated'
+              });
+              return result.mode === 'aggregated' &&
+                result.rawSum === 3 && result.modifiedSum === -2 &&
+                result.total === 3 && result.indicator === '*';
+            }
+          },
+          {
+            name: "computeResult - aggregated bonus with ceiling (indicator ^)",
+            test: () => {
+              // 4d6 +5+20: rolls [6, 5, 4, 2], rawSum=17, 17+5=22 > ceiling=20 → total=20 (^)
+              const result = DiceNotation.computeResult([6, 5, 4, 2], {
+                count: 4, sides: 6, modifier: 5, limit: 20, limitSign: '+', modifierMode: 'aggregated'
+              });
+              return result.mode === 'aggregated' &&
+                result.rawSum === 17 && result.modifiedSum === 22 &&
+                result.total === 20 && result.indicator === '^';
+            }
+          },
+          {
+            name: "computeResult - aggregated rangeAbs and rangeLimit",
+            test: () => {
+              // 2d6 +3+12: rawMin=2, rawMax=12; modMin=5, modMax=15; ceiling=12
+              const result = DiceNotation.computeResult([3, 3], {
+                count: 2, sides: 6, modifier: 3, limit: 12, limitSign: '+', modifierMode: 'aggregated'
+              });
+              return result.rangeAbs.min === 5 && result.rangeAbs.max === 15 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 5 && result.rangeLimit.max === 12;
+            }
+          },
+          {
+            name: "computeResult - basic roll (no modifier)",
+            test: () => {
+              const result = DiceNotation.computeResult([3, 4, 2], {
+                count: 3, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none'
+              });
+              return result.mode === 'none' &&
+                result.total === 9 && result.min === 3 && result.max === 18 &&
+                result.formula === '3d6';
+            }
+          },
+          {
+            name: "buildFormula - basic",
+            test: () => DiceNotation.buildFormula(3, 6, 0, null, null, 'none') === '3d6'
+          },
+          {
+            name: "buildFormula - distributed penalty with floor",
+            test: () => DiceNotation.buildFormula(3, 4, -3, 1, '-', 'distributed') === '3d4-3-1'
+          },
+          {
+            name: "buildFormula - aggregated bonus with ceiling",
+            test: () => DiceNotation.buildFormula(4, 6, 5, 20, '+', 'aggregated') === '4d6 +5+20'
+          },
+          {
+            name: "Roll action produces batch groups",
+            test: () => {
+              DiceApp.actions.updateInput('2 3d6');
+              DiceApp.actions.roll();
+              // 2 batches of 3d6 → 2 result items
+              return DiceApp.state.rollResults.length === 2 &&
+                DiceApp.state.rollResults[0].mode === 'none' &&
+                DiceApp.state.rollResults[1].mode === 'none';
+            }
+          },
+          {
+            name: "Roll action produces distributed result",
+            test: () => {
+              DiceApp.actions.updateInput('3d6-2');
+              DiceApp.actions.roll();
+              return DiceApp.state.rollResults.length === 1 &&
+                DiceApp.state.rollResults[0].mode === 'distributed';
+            }
+          },
+          {
+            name: "Roll action produces aggregated result",
+            test: () => {
+              DiceApp.actions.updateInput('3d6 +2');
+              DiceApp.actions.roll();
+              return DiceApp.state.rollResults.length === 1 &&
+                DiceApp.state.rollResults[0].mode === 'aggregated';
             }
           },
           {
@@ -1295,6 +1776,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.state.cursorPosition = 0;
               DiceApp.handlers.keyMap['ArrowRight']();
               return DiceApp.state.cursorPosition === 1;
+            }
+          },
+          {
+            name: "KeyMap handles '-' key",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              DiceApp.handlers.keyMap['-']();
+              return DiceApp.state.currentValue === '3d6-' && DiceApp.state.cursorPosition === 4;
+            }
+          },
+          {
+            name: "KeyMap handles '+' key",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              DiceApp.handlers.keyMap['+']();
+              return DiceApp.state.currentValue === '3d6+' && DiceApp.state.cursorPosition === 4;
+            }
+          },
+          {
+            name: "KeyMap handles '!' key",
+            test: () => {
+              DiceApp.state.currentValue = '3d6';
+              DiceApp.state.cursorPosition = 3;
+              DiceApp.handlers.keyMap['!']();
+              return DiceApp.state.currentValue === '3d6!' && DiceApp.state.cursorPosition === 4;
             }
           },
           {
