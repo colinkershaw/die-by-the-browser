@@ -1,0 +1,41 @@
+// Assuming collection is an object with a batchCount property
+const batchCount = (collection.batchCount === null ? 1 : collection.batchCount);
+
+// Validation to reject useless modifiers
+if (modifier === +0 || modifier === -0) {
+    return { error: 'USELESS_MODIFIER', meta: 'Modifiers of +0 and -0 are not allowed.' };
+}
+
+// Validate batchCount
+if (batchCount <= 0) {
+    return { error: 'INVALID_BATCH_COUNT', meta: 'batchCount must be greater than 0.' };
+}
+
+// DiceApp actions  - Updating to use the new API
+DiceApp.actions.roll = function(diceSpec) {
+    try {
+        const result = DiceCore.execute(diceSpec);
+        state.rollResults.push({
+            formula: diceSpec,
+            rolls: result.rolls,
+            total: result.total,
+            min: result.min,
+            max: result.max
+        });
+    } catch (error) {
+        console.error(DiceNotation.getErrorMessage ? DiceNotation.getErrorMessage(error) : error);
+    }
+};
+
+// Assuming we're adding these tests into the inline DiceCore test suite
+
+// V-12: validate: modifier +0 is invalid
+console.assert(validate({modifier: +0}) === 'USELESS_MODIFIER', 'Test V-12 failed');
+
+// V-13: validate: modifier -0 is invalid
+console.assert(validate({modifier: -0}) === 'USELESS_MODIFIER', 'Test V-13 failed');
+
+// V-14: validate: batch count 0 is invalid
+console.assert(validate({batchCount: 0}) === 'INVALID_BATCH_COUNT', 'Test V-14 failed');
+
+// Keeping other content unchanged
