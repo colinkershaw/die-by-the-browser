@@ -585,6 +585,8 @@ const DiceCore = (function () {
   // ============================================================================
   // PARSER
   // ============================================================================
+  // Accepts either a string input (which will be tokenized) or a pre-tokenized array.
+  // The array input is useful for testing or when tokens are generated externally.
   function parse(input) {
     // Accept string or tokens
     let tokens;
@@ -799,14 +801,14 @@ const DiceCore = (function () {
         }
         
         // Limits without modifiers are invalid
-        // Note: A modifier with value 0 and no limit is treated as a limit without modifier
-        // This catches cases like "3d6-0" which should be "3d6-X-0"
         if (group.limit && !group.modifier) {
           return Err('LIMIT_WITHOUT_MODIFIER');
         }
         
-        // A modifier of value 0 with no second operator is ambiguous and likely a mistake
-        // It should be written as "3d6-X-0" or "3d6+X+0" to be clear
+        // Edge case: "3d6-0" or "3d6+0" is ambiguous
+        // Is 0 a modifier (useless but valid) or a limit (invalid without a modifier value)?
+        // We treat single-operator expressions with value 0 as invalid "limit without modifier"
+        // to prevent ambiguous notation. Valid forms: "3d6-X-0" (modifier X, floor 0)
         if (group.modifier && !group.limit && group.modifier.value === 0) {
           return Err('LIMIT_WITHOUT_MODIFIER');
         }
@@ -839,7 +841,7 @@ const DiceCore = (function () {
     
     // Calculate ranges
     result.absoluteRange = calculateAbsoluteRange(ast);
-    result.effectiveRange = calculateEffectiveRange(ast);
+    result.effectiveRange = result.absoluteRange; // Same as absolute for now
     
     return Ok(result);
   }
@@ -996,12 +998,6 @@ const DiceCore = (function () {
     }
     
     return { min, max };
-  }
-  
-  function calculateEffectiveRange(ast) {
-    // For now, effective range is same as absolute range
-    // Can be enhanced later with statistical analysis
-    return calculateAbsoluteRange(ast);
   }
 
   // ============================================================================
