@@ -75,11 +75,15 @@ test.describe('DiceApp - Desktop Mode', () => {
     const rolls = page.locator('.result-rolls');
     await expect(rolls).toBeVisible();
 
-    const rollsText = await rolls.textContent();
-    expect(rollsText).toContain('Rolls:');
+    // In the grid layout the "Rolls:" label lives in the sibling .result-lbl span.
+    // Check the containing row for the label, and the .result-rolls span for the values.
+    const rollsRow = page.locator('.result-row').filter({has: rolls});
+    const rowText = await rollsRow.textContent();
+    expect(rowText).toContain('Rolls:');
 
-    // Should have 3 numbers separated by spaces
-    const numbers = rollsText.replace('Rolls:', '').trim().split(' ');
+    // Should have 3 numbers in .result-rolls
+    const diceText = await rolls.textContent();
+    const numbers = diceText.trim().split(/\s+/);
     expect(numbers).toHaveLength(3);
   });
 

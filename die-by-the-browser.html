@@ -384,36 +384,71 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         .result-formula {
             font-weight: 600;
             color: #2AE3F3;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+        }
+
+        /* Grid row: label + value side by side */
+        .result-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        /* Fixed-width label column so values align across all rows */
+        .result-lbl {
+            color: #a0aec0;
+            font-size: 0.78em;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            min-width: 50px;
+            flex-shrink: 0;
         }
 
         .result-value {
-            font-size: 1.5em;
+            font-size: 1.4em;
             font-weight: 700;
             color: #ffffff;
         }
 
         .result-rolls {
-            font-size: 0.95em;
+            font-size: 0.92em;
             color: #2AE3F3;
-            margin-top: 8px;
             font-family: 'Courier New', monospace;
-            background: rgba(42, 227, 243, 0.1);
-            padding: 8px;
-            border-radius: 5px;
+            background: rgba(42, 227, 243, 0.08);
+            padding: 3px 8px;
+            border-radius: 4px;
+            flex: 1;
         }
 
         .result-range {
             font-size: 0.85em;
             color: #a0aec0;
-            margin-top: 5px;
+        }
+
+        /* Range label badges: (Limit) and (Abs) */
+        .range-label {
+            font-size: 0.85em;
+            color: #718096;
+            margin-left: 2px;
         }
 
         .result-math {
             font-size: 0.9em;
             color: #a0aec0;
-            margin-top: 5px;
             font-family: 'Courier New', monospace;
+        }
+
+        /* Distributed die result: game result prominent, raw math subtle */
+        .die-game {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .die-raw {
+            color: #718096;
+            font-size: 0.88em;
+            margin-right: 8px;
         }
 
         .error {
@@ -705,7 +740,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           return {raw, result, indicator};
         });
         const total = dieResults.reduce((s, d) => s + d.result, 0);
-        return {formula, mode: 'distributed', dieResults, total, modifier};
+
+        // Range: absolute span (no limit applied) and effective span (with limit)
+        const rangeAbs = {min: count * (1 + modifier), max: count * (sides + modifier)};
+        let rangeLimit = null;
+        if (limit !== null) {
+          if (limitSign === '-') {
+            rangeLimit = {min: count * Math.max(limit, 1 + modifier), max: count * (sides + modifier)};
+          } else {
+            rangeLimit = {min: count * (1 + modifier), max: count * Math.min(limit, sides + modifier)};
+          }
+        }
+        return {formula, mode: 'distributed', dieResults, total, modifier, rangeAbs, rangeLimit};
       }
 
       // aggregated mode
@@ -799,9 +845,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * Update keyboard input
      */
     updateKeyboard(value, cursorPos) {
-      this.keyboard.value = value;
-      this.keyboard.focus();
-      this.keyboard.setSelectionRange(cursorPos, cursorPos);
+      // Only update the DOM value (and reposition cursor) when the value has
+      // actually changed from an external source such as a URL-hash load or a
+      // mode switch.  During normal typing the browser manages the cursor
+      // natively, so we must not call setSelectionRange() or it will collapse
+      // any selection the user is making (e.g. shift+click, shift+arrow).
+      if (this.keyboard.value !== value) {
+        this.keyboard.value = value;
+        this.keyboard.setSelectionRange(cursorPos, cursorPos);
+      }
     },
 
     /**
@@ -932,6 +984,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       renderResults() {
         const {nodes, state} = DiceApp;
 
+        /**
+         * Build a range string. Shows both Limit and Abs when a limit exists,
+         * otherwise just the absolute range.
+         * @param {{min,max}} rangeAbs
+         * @param {{min,max}|null} rangeLimit
+         * @returns {string}
+         */
+        const buildRangeStr = (rangeAbs, rangeLimit) => {
+          if (rangeLimit) {
+            return `${rangeLimit.min}–${rangeLimit.max} <span class="range-label">(Limit)</span>` +
+              `&nbsp;&nbsp;${rangeAbs.min}–${rangeAbs.max} <span class="range-label">(Abs)</span>`;
+          }
+          return `${rangeAbs.min}–${rangeAbs.max}`;
+        };
+
         let newHTML = '';
         if (state.errorMessage) {
           newHTML = `<div class="error">${state.errorMessage}</div>`;
@@ -940,31 +1007,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             if (r.mode === 'distributed') {
               const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
               const rollsDisplay = r.dieResults.map(d =>
-                `${d.result}${d.indicator}=[${d.raw}${modStr}]`
-              ).join(' ');
+                `<span class="die-game">${d.result}${d.indicator}</span><span class="die-raw">=[${d.raw}${modStr}]</span>`
+              ).join('');
+              const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
-          <div class="result-value">Total: ${r.total}</div>
-          <div class="result-rolls">Rolls: ${rollsDisplay}</div>
+          <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
+          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
             } else if (r.mode === 'aggregated') {
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${r.total}${r.indicator}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${r.total}${r.indicator}`;
-              let rangeHTML = '';
-              if (r.rangeLimit) {
-                rangeHTML = `
-          <div class="result-range">Range (Limit): ${r.rangeLimit.min}–${r.rangeLimit.max}</div>
-          <div class="result-range">Range (Abs): ${r.rangeAbs.min}–${r.rangeAbs.max}</div>`;
-              }
+              const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
-          <div class="result-value">Total: ${r.total}${r.indicator}</div>
-          <div class="result-math">Math: ${mathStr}</div>${rangeHTML}
-          <div class="result-rolls">Rolls: ${r.rolls.join(' ')}</div>
+          <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}${r.indicator}</span></div>
+          <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
+          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${r.rolls.join(' ')}</span></div>
+          <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
             } else {
@@ -972,9 +1037,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
-          <div class="result-value">Total: ${r.total}</div>
-          <div class="result-rolls">Rolls: ${r.rolls.join(' ')}</div>
-          <div class="result-range">Range: ${r.min}–${r.max}</div>
+          <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
+          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${r.rolls.join(' ')}</span></div>
+          <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
             }
@@ -1097,6 +1162,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         state.mode = mode;
         actions.detectInputMode();
         ui.renderAll();
+        DiceInput.focus(ui.isKeypadMode()); // Ensure the active input is focused after switch
         ui.closeMenu();
       },
 
@@ -1604,6 +1670,63 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               return result.rangeAbs.min === 5 && result.rangeAbs.max === 15 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 5 && result.rangeLimit.max === 12;
+            }
+          },
+          {
+            name: "computeResult - distributed penalty, rangeAbs and rangeLimit",
+            test: () => {
+              // 3d4-3-1 (floor=1): rangeAbs = 3*(-2) to 3*1 = -6 to 3
+              // rangeLimit = 3*max(1,-2) to 3*1 = 3 to 3
+              const result = DiceNotation.computeResult([4, 1, 2], {
+                count: 3, sides: 4, modifier: -3, limit: 1, limitSign: '-', modifierMode: 'distributed'
+              });
+              return result.rangeAbs.min === -6 && result.rangeAbs.max === 3 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 3 && result.rangeLimit.max === 3;
+            }
+          },
+          {
+            name: "computeResult - distributed bonus, rangeAbs and rangeLimit",
+            test: () => {
+              // 2d4+5+7 (ceiling=7): rangeAbs = 2*6 to 2*9 = 12 to 18
+              // rangeLimit = 2*6 to 2*min(7,9) = 12 to 14
+              const result = DiceNotation.computeResult([3, 4], {
+                count: 2, sides: 4, modifier: 5, limit: 7, limitSign: '+', modifierMode: 'distributed'
+              });
+              return result.rangeAbs.min === 12 && result.rangeAbs.max === 18 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 12 && result.rangeLimit.max === 14;
+            }
+          },
+          {
+            name: "computeResult - distributed no limit, rangeAbs only",
+            test: () => {
+              // 2d6-2 (no limit): rangeAbs = 2*(1-2) to 2*(6-2) = -2 to 8
+              const result = DiceNotation.computeResult([4, 3], {
+                count: 2, sides: 6, modifier: -2, limit: null, limitSign: null, modifierMode: 'distributed'
+              });
+              return result.rangeAbs.min === -2 && result.rangeAbs.max === 8 &&
+                result.rangeLimit === null;
+            }
+          },
+          {
+            name: "updateKeyboard does not collapse selection when value is unchanged",
+            test: () => {
+              // Simulate what happens when onInput fires with same value (e.g. shift+arrow)
+              const originalValue = DiceApp.nodes.input.value;
+              DiceApp.nodes.input.value = '3d6';
+              // setSelectionRange to simulate a selection
+              DiceApp.nodes.input.setSelectionRange(1, 3);
+              const selBefore = DiceApp.nodes.input.selectionStart;
+              const selEndBefore = DiceApp.nodes.input.selectionEnd;
+              // Calling updateKeyboard with same value should NOT touch selection
+              DiceInput.updateKeyboard('3d6', 0);
+              const selAfter = DiceApp.nodes.input.selectionStart;
+              const selEndAfter = DiceApp.nodes.input.selectionEnd;
+              DiceApp.nodes.input.value = originalValue;
+              // Selection should be preserved (start=1, end=3, not collapsed to 0)
+              return selBefore === 1 && selEndBefore === 3 &&
+                selAfter === 1 && selEndAfter === 3;
             }
           },
           {
