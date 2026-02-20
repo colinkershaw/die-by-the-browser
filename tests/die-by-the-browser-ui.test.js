@@ -76,15 +76,13 @@ test.describe('DiceApp - Desktop Mode', () => {
     await expect(rolls).toBeVisible();
 
     // In the grid layout the "Rolls:" label lives in the sibling .result-lbl span.
-    // Check the containing row for the label, and the .result-rolls span for the values.
     const rollsRow = page.locator('.result-row').filter({has: rolls});
     const rowText = await rollsRow.textContent();
     expect(rowText).toContain('Rolls:');
 
-    // Should have 3 numbers in .result-rolls
-    const diceText = await rolls.textContent();
-    const numbers = diceText.trim().split(/\s+/);
-    expect(numbers).toHaveLength(3);
+    // Each roll is now a .roll-val span; 3d6 should produce 3 of them
+    const diceCount = await rolls.locator('.roll-val').count();
+    expect(diceCount).toBe(3);
   });
 
   test('should show error for invalid notation', async ({page}) => {
