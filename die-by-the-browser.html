@@ -447,6 +447,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         .die-game {
             color: #2AE3F3;
             font-weight: 600;
+            text-align: right;
         }
 
         /* Each die-cell keeps game-result + raw-math together when wrapping */
@@ -456,10 +457,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             white-space: nowrap;
         }
 
+        /* Raw value within die-raw: right-aligned for digit-count consistency */
+        .die-raw-val {
+            display: inline-block;
+            text-align: right;
+        }
+
         .die-raw {
             color: #718096;
             font-size: 0.88em;
             margin-right: 4px;
+        }
+
+        /* Individual roll value cell in basic/aggregated mode */
+        .roll-val {
+            text-align: right;
+            flex-shrink: 0;
         }
 
         .error {
@@ -631,10 +644,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const modSign = diceMatch[4];
           modifier = parseInt(modSign + diceMatch[5], 10);
           modifierMode = 'distributed';
+          if (Math.abs(modifier) > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
           if (diceMatch[6]) {
             const lim = DiceNotation._parseLimit(modSign, diceMatch[7], diceMatch[8]);
             if (lim.error) return {collections: null, error: lim.error};
             ({limit, limitSign} = lim);
+            if (limit > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
           }
         }
         i++;
@@ -646,10 +661,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             const modSign = aggMatch[1];
             modifier = parseInt(modSign + aggMatch[2], 10);
             modifierMode = 'aggregated';
+            if (Math.abs(modifier) > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
             if (aggMatch[3]) {
               const lim = DiceNotation._parseLimit(modSign, aggMatch[4], aggMatch[5]);
               if (lim.error) return {collections: null, error: lim.error};
               ({limit, limitSign} = lim);
+              if (limit > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
             }
             i++;
           }
@@ -731,7 +748,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       if (modifierMode === 'none') {
         const rolls = Array.from(rawRolls);
         const total = rolls.reduce((s, v) => s + v, 0);
-        return {formula, mode: 'none', rolls, total, min: count, max: count * sides};
+        return {formula, mode: 'none', rolls, total, min: count, max: count * sides, sides};
       }
 
       if (modifierMode === 'distributed') {
@@ -766,7 +783,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             rangeLimit = null;
           }
         }
-        return {formula, mode: 'distributed', dieResults, total, modifier, rangeAbs, rangeLimit};
+        return {formula, mode: 'distributed', dieResults, total, modifier, rangeAbs, rangeLimit, sides, limit, limitSign};
       }
 
       // aggregated mode
@@ -799,7 +816,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           rangeLimit = null;
         }
       }
-      return {formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeAbs, rangeLimit};
+      return {formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeAbs, rangeLimit, sides};
     },
 
     /**
@@ -812,7 +829,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12"',
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
         'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`,
-        'INVALID_OPERATOR_FOR_LIMIT': 'Invalid operator for limit. Limit sign must match modifier sign (e.g., 3d6-5-1 or 3d6+5+10).'
+        'INVALID_OPERATOR_FOR_LIMIT': 'Invalid operator for limit. Limit sign must match modifier sign (e.g., 3d6-5-1 or 3d6+5+10).',
+        'MODIFIER_TOO_LARGE': `Modifier or limit too large! Maximum allowed is ${DiceApp.MAX_MODIFIER.toLocaleString()}.`
       };
       return messages[errorCode] || 'Unknown error';
     }
@@ -911,7 +929,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     // Configuration
     PLACEHOLDER_TEXT: "e.g., 3d6 2 3d4-2-0 4d6 +5+20",
     MAX_DICE_COUNT: 100000,
-    MAX_DIE_SIDES: 1000000000,
+    MAX_DIE_SIDES: 1000000,
+    MAX_MODIFIER: 1000000,
 
     // State management (Model)
     state: {
@@ -1018,6 +1037,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           return `${rangeAbs.min}–${rangeAbs.max}`;
         };
 
+        /**
+         * Build padded roll-value spans for basic/aggregated rolls.
+         * Each roll is right-aligned to the theoretical max digit width for the die type.
+         * @param {number[]} rolls
+         * @param {number} sides
+         * @returns {string}
+         */
+        const rollValSpans = (rolls, sides) => {
+          const w = String(sides).length;
+          return rolls.map(v => `<span class="roll-val" style="min-width:${w}ch">${v}</span>`).join('');
+        };
+
         let newHTML = '';
         if (state.errorMessage) {
           newHTML = `<div class="error">${state.errorMessage}</div>`;
@@ -1025,8 +1056,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           newHTML = state.rollResults.map(r => {
             if (r.mode === 'distributed') {
               const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
+
+              // Theoretical max game-result width (digits + optional indicator char).
+              // A floor limit (-) is the true minimum displayed value (result ≥ limit by definition).
+              // A ceiling limit (+) is the true maximum displayed value (result ≤ limit by definition).
+              const theorMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
+              const theorMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
+              const gameNumWidth = Math.max(String(theorMinGame).length, String(theorMaxGame).length);
+              const maxGameWidth = gameNumWidth + (r.limit !== null ? 1 : 0); // +1 for * or ^
+              // Theoretical max raw-value width (always 1..sides)
+              const maxRawWidth = String(r.sides).length;
+
               const rollsDisplay = r.dieResults.map(d =>
-                `<span class="die-cell" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${d.raw})"><span class="die-game">${d.result}${d.indicator}</span><span class="die-raw">=[${d.raw}${modStr}]</span></span>`
+                `<span class="die-cell" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${d.raw})">` +
+                `<span class="die-game" style="min-width:${maxGameWidth}ch">${d.result}${d.indicator}</span>` +
+                `<span class="die-raw">=[<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}]</span>` +
+                `</span>`
               ).join('');
               const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
               return `
@@ -1047,7 +1092,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}${r.indicator}</span></div>
           <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
-          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${r.rolls.join(' ')}</span></div>
+          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
@@ -1057,7 +1102,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${r.rolls.join(' ')}</span></div>
+          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
@@ -1456,8 +1501,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           {
             name: "Reject too large die sides",
             test: () => {
-              const result = DiceNotation.parse("1d9999999999");
-              return result.collections === null;
+              const result = DiceNotation.parse("1d1000001");
+              return result.collections === null && result.error === 'TOO_MANY_SIDES';
             }
           },
           {
@@ -1465,6 +1510,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               const result = DiceNotation.parse("60000d6 50000d6");
               return result.collections === null;
+            }
+          },
+          {
+            name: "Reject modifier too large - distributed",
+            test: () => {
+              const result = DiceNotation.parse("3d6+1000001");
+              return result.collections === null && result.error === 'MODIFIER_TOO_LARGE';
+            }
+          },
+          {
+            name: "Reject modifier too large - aggregated",
+            test: () => {
+              const result = DiceNotation.parse("3d6 -1000001");
+              return result.collections === null && result.error === 'MODIFIER_TOO_LARGE';
+            }
+          },
+          {
+            name: "Reject limit too large - distributed",
+            test: () => {
+              const result = DiceNotation.parse("3d6+5+1000001");
+              return result.collections === null && result.error === 'MODIFIER_TOO_LARGE';
+            }
+          },
+          {
+            name: "Reject limit too large - aggregated",
+            test: () => {
+              const result = DiceNotation.parse("3d6 -5-1000001");
+              return result.collections === null && result.error === 'MODIFIER_TOO_LARGE';
+            }
+          },
+          {
+            name: "Accept modifier at max boundary",
+            test: () => {
+              const result = DiceNotation.parse("1d6+1000000");
+              return result.collections !== null && result.collections[0].modifier === 1000000;
             }
           },
           {
