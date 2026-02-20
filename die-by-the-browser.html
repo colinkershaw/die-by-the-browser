@@ -419,6 +419,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             padding: 3px 8px;
             border-radius: 4px;
             flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 2px 6px;
         }
 
         .result-range {
@@ -441,14 +445,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         /* Distributed die result: game result prominent, raw math subtle */
         .die-game {
-            color: #ffffff;
+            color: #2AE3F3;
             font-weight: 600;
+        }
+
+        /* Each die-cell keeps game-result + raw-math together when wrapping */
+        .die-cell {
+            display: inline-flex;
+            align-items: baseline;
+            white-space: nowrap;
         }
 
         .die-raw {
             color: #718096;
             font-size: 0.88em;
-            margin-right: 8px;
+            margin-right: 4px;
         }
 
         .error {
@@ -750,6 +761,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           } else {
             rangeLimit = {min: count * (1 + modifier), max: count * Math.min(limit, sides + modifier)};
           }
+          // Discard rangeLimit when it doesn't actually constrain (equals rangeAbs)
+          if (rangeLimit.min === rangeAbs.min && rangeLimit.max === rangeAbs.max) {
+            rangeLimit = null;
+          }
         }
         return {formula, mode: 'distributed', dieResults, total, modifier, rangeAbs, rangeLimit};
       }
@@ -778,6 +793,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           rangeLimit = {min: Math.max(limit, rawMin + modifier), max: rawMax + modifier};
         } else {
           rangeLimit = {min: rawMin + modifier, max: Math.min(limit, rawMax + modifier)};
+        }
+        // Discard rangeLimit when it doesn't actually constrain (equals rangeAbs)
+        if (rangeLimit.min === rangeAbs.min && rangeLimit.max === rangeAbs.max) {
+          rangeLimit = null;
         }
       }
       return {formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeAbs, rangeLimit};
@@ -1007,7 +1026,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             if (r.mode === 'distributed') {
               const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
               const rollsDisplay = r.dieResults.map(d =>
-                `<span class="die-game">${d.result}${d.indicator}</span><span class="die-raw">=[${d.raw}${modStr}]</span>`
+                `<span class="die-cell" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${d.raw})"><span class="die-game">${d.result}${d.indicator}</span><span class="die-raw">=[${d.raw}${modStr}]</span></span>`
               ).join('');
               const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
               return `
@@ -1649,6 +1668,39 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "computeResult - aggregated floor not reached, no indicator",
+            test: () => {
+              // 10d12 -1-4: floor=4, min achievable=9 → floor never triggers; no indicator
+              const result = DiceNotation.computeResult([6,6,6,6,6,6,6,6,6,6], {
+                count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
+              });
+              // rawSum=60, modifiedSum=59; 59 > 4 → no clamping
+              return result.indicator === '' && result.total === 59;
+            }
+          },
+          {
+            name: "computeResult - aggregated non-constraining floor gives null rangeLimit",
+            test: () => {
+              // 10d12 -1-4: floor=4 below min achievable=9 → limit doesn't constrain → rangeLimit=null
+              const result = DiceNotation.computeResult([6,6,6,6,6,6,6,6,6,6], {
+                count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
+              });
+              return result.rangeAbs.min === 9 && result.rangeAbs.max === 119 &&
+                result.rangeLimit === null;
+            }
+          },
+          {
+            name: "computeResult - distributed non-constraining floor gives null rangeLimit",
+            test: () => {
+              // 3d6-0 (floor=0, modifier=0): rangeAbs = {3,18}, floor=0 < min=3 → no constraint
+              const result = DiceNotation.computeResult([3, 3, 3], {
+                count: 3, sides: 6, modifier: 0, limit: 0, limitSign: '-', modifierMode: 'distributed'
+              });
+              return result.rangeAbs.min === 3 && result.rangeAbs.max === 18 &&
+                result.rangeLimit === null;
+            }
+          },
+          {
             name: "computeResult - aggregated bonus with ceiling (indicator ^)",
             test: () => {
               // 4d6 +5+20: rolls [6, 5, 4, 2], rawSum=17, 17+5=22 > ceiling=20 → total=20 (^)
@@ -2287,6 +2339,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         window.addEventListener('resize', () => {
           DiceApp.actions.detectInputMode();
           DiceApp.ui.renderAll();
+          // Restore focus after auto-mode switch (keyboard ↔ keypad)
+          DiceInput.focus(DiceApp.ui.isKeypadMode());
         });
         document.addEventListener('click', (e) => DiceApp.handlers.onDocumentClick(e));
 
