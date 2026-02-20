@@ -1,7 +1,7 @@
 {
   "name": "Die! By the Browser",
-  "short_name": "DieBrowser",
-  "description": "A high-performance offline dice rolling application.",
+  "short_name": "Die! Browser",
+  "description": "A high-velocity standalone & offline dice rolling app.",
   "start_url": "./die-by-the-browser.html",
   "display": "standalone",
   "background_color": "#0d142d",
