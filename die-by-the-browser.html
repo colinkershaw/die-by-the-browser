@@ -977,8 +977,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           if (newHash) {
             window.location.hash = '#' + newHash;
           } else {
-            // Remove the hash completely
-            history.replaceState(null, null, ' ');
+            // Push a new "no-hash" state so Back/Forward history is preserved
+            history.pushState(null, null, ' ');
           }
         }
       }
@@ -1054,22 +1054,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           newHTML = `<div class="error">${state.errorMessage}</div>`;
         } else {
           newHTML = state.rollResults.map(r => {
+            /**
+             * Render a game-result value with floor/ceiling visual decoration.
+             * Model stores '*' (floor) and '^' (ceiling); View renders underline/overline.
+             * No extra character is appended, so column width is purely digit-based.
+             * @param {number} val - Displayed numeric value
+             * @param {string} indicator - '' | '*' | '^'
+             * @param {number} minWidth - ch width for alignment
+             * @returns {string}
+             */
+            const gameSpan = (val, indicator, minWidth) => {
+              const style = `min-width:${minWidth}ch`;
+              if (indicator === '*') {
+                return `<span class="die-game" style="${style};text-decoration:underline">${val}</span>`;
+              }
+              if (indicator === '^') {
+                return `<span class="die-game" style="${style};text-decoration:overline">${val}</span>`;
+              }
+              return `<span class="die-game" style="${style}">${val}</span>`;
+            };
+
             if (r.mode === 'distributed') {
               const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
 
-              // Theoretical max game-result width (digits + optional indicator char).
+              // Theoretical max game-result width (digits only — indicator is now text-decoration).
               // A floor limit (-) is the true minimum displayed value (result ≥ limit by definition).
               // A ceiling limit (+) is the true maximum displayed value (result ≤ limit by definition).
               const theorMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
               const theorMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
-              const gameNumWidth = Math.max(String(theorMinGame).length, String(theorMaxGame).length);
-              const maxGameWidth = gameNumWidth + (r.limit !== null ? 1 : 0); // +1 for * or ^
+              const maxGameWidth = Math.max(String(theorMinGame).length, String(theorMaxGame).length);
               // Theoretical max raw-value width (always 1..sides)
               const maxRawWidth = String(r.sides).length;
 
               const rollsDisplay = r.dieResults.map(d =>
                 `<span class="die-cell" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${d.raw})">` +
-                `<span class="die-game" style="min-width:${maxGameWidth}ch">${d.result}${d.indicator}</span>` +
+                gameSpan(d.result, d.indicator, maxGameWidth) +
                 `<span class="die-raw">=[<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}]</span>` +
                 `</span>`
               ).join('');
@@ -1083,14 +1102,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         </div>
       `;
             } else if (r.mode === 'aggregated') {
+              // Build a decorated total string matching the same underline/overline convention
+              const totalDecoStyle = r.indicator === '*' ? 'text-decoration:underline'
+                : r.indicator === '^' ? 'text-decoration:overline' : '';
+              const decoratedTotal = totalDecoStyle
+                ? `<span style="${totalDecoStyle}">${r.total}</span>`
+                : `${r.total}`;
               const mathStr = r.modifier >= 0
-                ? `(${r.rawSum}) + ${r.modifier} = ${r.total}${r.indicator}`
-                : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${r.total}${r.indicator}`;
+                ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
+                : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
               const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
-          <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}${r.indicator}</span></div>
+          <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${decoratedTotal}</span></div>
           <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
           <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
