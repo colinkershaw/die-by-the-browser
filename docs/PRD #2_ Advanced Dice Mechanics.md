@@ -2,7 +2,7 @@
 
 ## **1\. Objective**
 
-Extend the core dice rolling engine to support standard tabletop "Advanced Mechanics"—specifically **Exploding Dice**, **Keep/Drop logic**, and **Critical Success/Failure** detection—without adding new keys to the physical keypad. All notation must utilize existing keys: Numbers, d, Space, \-, \+, and \!.
+Extend the core dice rolling engine to support standard tabletop "Advanced Mechanics"—specifically **Exploding Dice**, **Keep/Drop logic**, and **Critical Success/Failure** detection—without adding new keys to the custom keypad. All notation must utilize existing keys: Numbers, d, Space, \-, \+, and \!.
 
 ## **2\. Exploding Dice (The \! and \!\! Operators)**
 
