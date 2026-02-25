@@ -456,6 +456,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             text-align: right;
         }
 
+        /* Value was raised to floor limit: underline with offset + italic */
+        .die-clamp-floor {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            font-style: italic;
+        }
+
+        /* Value was lowered to ceiling limit: overline + italic */
+        .die-clamp-ceiling {
+            text-decoration: overline;
+            font-style: italic;
+        }
+
         /* Each die-cell keeps game-result + raw-math together when wrapping */
         .die-cell {
             display: inline-flex;
@@ -1072,10 +1085,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             const gameSpan = (val, indicator, minWidth) => {
               const style = `min-width:${minWidth}ch`;
               if (indicator === '*') {
-                return `<span class="die-game" style="${style};text-decoration:underline">${val}</span>`;
+                return `<span class="die-game die-clamp-floor" style="${style}">${val}</span>`;
               }
               if (indicator === '^') {
-                return `<span class="die-game" style="${style};text-decoration:overline">${val}</span>`;
+                return `<span class="die-game die-clamp-ceiling" style="${style}">${val}</span>`;
               }
               return `<span class="die-game" style="${style}">${val}</span>`;
             };
@@ -1108,12 +1121,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         </div>
       `;
             } else if (r.mode === 'aggregated') {
-              // Build a decorated total string matching the same underline/overline convention
-              const totalDecoStyle = r.indicator === '*' ? 'text-decoration:underline'
-                : r.indicator === '^' ? 'text-decoration:overline' : '';
-              const decoratedTotal = totalDecoStyle
-                ? `<span style="${totalDecoStyle}">${r.total}</span>`
-                : `${r.total}`;
+              const decoratedTotal = r.indicator === '*'
+                ? `<span class="die-clamp-floor">${r.total}</span>`
+                : r.indicator === '^'
+                  ? `<span class="die-clamp-ceiling">${r.total}</span>`
+                  : `${r.total}`;
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
