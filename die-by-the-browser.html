@@ -356,13 +356,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         .results {
             background: #0d142d;
             border-radius: 10px;
-            padding: 20px;
+            padding: 10px;
             min-height: 100px;
         }
 
         .result-item {
             background: #1a2238;
-            padding: 15px;
+            padding: 10px;
             border-radius: 8px;
             margin-bottom: 10px;
             border-left: 4px solid #2AE3F3;
@@ -393,6 +393,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             align-items: baseline;
             gap: 10px;
             margin-top: 5px;
+        }
+
+        /* Stacked row: label on top, content below (used for Rolls) */
+        .result-row--stacked {
+            flex-direction: column;
+            align-items: stretch;
         }
 
         /* Fixed-width label column so values align across all rows */
@@ -448,6 +454,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #2AE3F3;
             font-weight: 600;
             text-align: right;
+        }
+
+        /* Value was raised to floor limit: underline with offset + italic */
+        .die-clamp-floor {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            font-style: italic;
+        }
+
+        /* Value was lowered to ceiling limit: overline + italic */
+        .die-clamp-ceiling {
+            text-decoration: overline;
+            font-style: italic;
         }
 
         /* Each die-cell keeps game-result + raw-math together when wrapping */
@@ -1066,10 +1085,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             const gameSpan = (val, indicator, minWidth) => {
               const style = `min-width:${minWidth}ch`;
               if (indicator === '*') {
-                return `<span class="die-game" style="${style};text-decoration:underline">${val}</span>`;
+                return `<span class="die-game die-clamp-floor" style="${style}">${val}</span>`;
               }
               if (indicator === '^') {
-                return `<span class="die-game" style="${style};text-decoration:overline">${val}</span>`;
+                return `<span class="die-game die-clamp-ceiling" style="${style}">${val}</span>`;
               }
               return `<span class="die-game" style="${style}">${val}</span>`;
             };
@@ -1097,17 +1116,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
             } else if (r.mode === 'aggregated') {
-              // Build a decorated total string matching the same underline/overline convention
-              const totalDecoStyle = r.indicator === '*' ? 'text-decoration:underline'
-                : r.indicator === '^' ? 'text-decoration:overline' : '';
-              const decoratedTotal = totalDecoStyle
-                ? `<span style="${totalDecoStyle}">${r.total}</span>`
-                : `${r.total}`;
+              const decoratedTotal = r.indicator === '*'
+                ? `<span class="die-clamp-floor">${r.total}</span>`
+                : r.indicator === '^'
+                  ? `<span class="die-clamp-ceiling">${r.total}</span>`
+                  : `${r.total}`;
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
@@ -1117,7 +1135,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${decoratedTotal}</span></div>
           <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
-          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
+          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
@@ -1127,7 +1145,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
+          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
