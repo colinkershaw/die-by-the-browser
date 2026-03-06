@@ -56,6 +56,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         :root {
             --placeholder-text: "e.g., 3d6 4d12";
+            --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
             --clamp-floor: #7FD3FF; /* cyan */
             --clamp-ceil:  #FFD166; /* amber */
         }
@@ -82,7 +83,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             max-width: 500px;
             width: 100%;
-            padding: 30px;
+            padding: 15px;
             position: relative;
         }
 
@@ -358,7 +359,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         .results {
             background: #0d142d;
             border-radius: 10px;
-            padding: 10px;
+            padding: 5px;
             min-height: 100px;
         }
 
@@ -368,7 +369,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             border-radius: 8px;
             margin-bottom: 10px;
             border-left: 4px solid #2AE3F3;
-            animation: slideIn 0.3s ease-out;
+            animation:  slideIn 0.3s ease-out;
             color: #ffffff;
         }
 
@@ -420,9 +421,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         .result-rolls {
-            font-size: 0.92em;
+            font-size: 1.2em;
             color: #2AE3F3;
-            font-family: 'Courier New', monospace;
+            font-family: var(--mono-font), monospace;
             background: rgba(42, 227, 243, 0.08);
             padding: 3px 8px;
             border-radius: 4px;
@@ -431,6 +432,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             flex-wrap: wrap;
             align-items: baseline;
             gap: 2px 6px;
+        }
+
+        .roll-chunk {
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+            padding: 2px 3px;
+            /*background: rgba(0, 0, 0, 0.5);*/
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid rgba(42, 227, 243, 0.10);
+            border-radius: 5px;
         }
 
         .result-range {
@@ -446,16 +458,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         .result-math {
-            font-size: 0.9em;
+            font-size: 1em;
             color: #a0aec0;
-            font-family: 'Courier New', monospace;
+            font-family: var(--mono-font), monospace;
         }
 
         /* Distributed die result: game result prominent, raw math subtle */
+        .roll-val,
         .die-game {
             color: #2AE3F3;
-            font-weight: 600;
-            text-align: right;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .roll-val {
+            flex-shrink: 0;
+        }
+
+        .die-game {
+            display: inline-flex;
+            align-items: baseline;
+            padding: 2px 3px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid rgba(42, 227, 243, 0.10);
+            border-radius: 5px;
+            margin-right: 2px;
+        }
+
+        .die-game-val {
+            display: inline-block;
+            text-align: center;
         }
 
         /* Value was raised to floor limit: underline with offset, thicker and colored */
@@ -465,9 +497,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             text-decoration-thickness: 2px;
             text-underline-offset: 3px;
             text-decoration-color: var(--clamp-floor);
-            /* subtle background to help at very small sizes (optional) */
-            background-image: linear-gradient(transparent 65%, rgba(255,209,102,0.06) 65%);
-            border-radius: 2px;
         }
 
         /* Value was lowered to ceiling limit: overline, thicker and colored */
@@ -476,8 +505,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             text-decoration-line: overline;
             text-decoration-thickness: 2px;
             text-decoration-color: var(--clamp-ceil);
-            background-image: linear-gradient(rgba(127,211,255,0.04) 0%, transparent 35%);
-            border-radius: 2px;
         }
 
         /* Each die-cell keeps game-result + raw-math together when wrapping */
@@ -497,12 +524,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #718096;
             font-size: 0.88em;
             margin-right: 4px;
-        }
-
-        /* Individual roll value cell in basic/aggregated mode */
-        .roll-val {
-            text-align: right;
-            flex-shrink: 0;
         }
 
         .error {
@@ -602,6 +623,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 </div>
 
 <script>
+  /**
+   * Die! By the Browser | Copyright (C) 2026 Colin Kershaw
+   * Licensed under GNU AGPLv3 (See file header for full notice).
+   * A dice rolling application with keyboard and custom keypad support.
+   */
 
   /**
    * DiceNotation - All dice notation business logic (pure, no DOM)
@@ -1074,10 +1100,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
          * @param {number} sides
          * @returns {string}
          */
-        const rollValSpans = (rolls, sides) => {
-          const w = String(sides).length;
-          return rolls.map(v => `<span class="roll-val" style="min-width:${w}ch">${v}</span>`).join('');
-        };
+                    const rollValSpans = (rolls, sides) => {
+              const w = String(sides).length;
+              return rolls.map((v) =>
+                `<span class="roll-chunk">` +
+                `<span class="roll-val" style="min-width:${w}ch">${v}</span>` +
+                `</span>`
+              ).join('');
+            };
 
         let newHTML = '';
         if (state.errorMessage) {
@@ -1094,14 +1124,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
              * @returns {string}
              */
             const gameSpan = (val, indicator, minWidth) => {
-              const style = `min-width:${minWidth}ch`;
+              const inner = `<span class="die-game-val" style="min-width:${minWidth}ch">${val}</span>`;
               if (indicator === '*') {
-                return `<span class="die-game die-clamp-floor" style="${style}">${val}</span>`;
+                return `<span class="die-game die-clamp-floor">${inner}</span>`;
               }
               if (indicator === '^') {
-                return `<span class="die-game die-clamp-ceiling" style="${style}">${val}</span>`;
+                return `<span class="die-game die-clamp-ceiling">${inner}</span>`;
               }
-              return `<span class="die-game" style="${style}">${val}</span>`;
+              return `<span class="die-game">${inner}</span>`;
             };
 
             if (r.mode === 'distributed') {
