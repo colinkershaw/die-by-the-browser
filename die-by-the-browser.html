@@ -188,17 +188,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             margin-bottom: 20px;
         }
 
-        #diceInput {
-            width: 100%;
-            padding: 15px;
-            font-size: 1.2em;
-            border: 2px solid #2AE3F3;
-            background: #0d142d;
-            color: #ffffff;
-            border-radius: 10px;
-            outline: none;
-            transition: border-color 0.3s;
-        }
+                    #diceInput {
+                width: 100%;
+                padding: 15px;
+                font-size: 1.2em;
+                border: 2px solid #2AE3F3;
+                background: #0d142d;
+                color: #ffffff;
+                border-radius: 10px;
+                outline: none;
+                transition: border-color 0.3s;
+                font-family: inherit;
+                line-height: 1.4;
+                resize: none;
+                overflow-y: hidden;
+                min-height: 52px;
+                white-space: pre-wrap;
+                overflow-wrap: break-word;
+            }
 
         #diceInput:focus {
             border-color: #2AE3F3;
@@ -439,8 +446,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             align-items: center;
             white-space: nowrap;
             padding: 2px 3px;
-            /*background: rgba(0, 0, 0, 0.5);*/
-            background: rgba(255, 255, 255, 0.03);
+            /*background: rgba(0, 0, 0, 0.03);*/
+            background: rgba(255, 255, 255, 0.02);
             border: 2px solid rgba(42, 227, 243, 0.10);
             border-radius: 5px;
         }
@@ -589,7 +596,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     </div>
 
     <div class="input-section">
-        <input type="text" id="diceInput" autocomplete="off" aria-label="Dice notation input">
+        <textarea id="diceInput" rows="1" autocomplete="off" aria-label="Dice notation input"></textarea>
         <div id="dicePseudoInput" class="empty"></div>
     </div>
 
@@ -897,7 +904,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
    * Handles keyboard and keypad display and interactions
    */
   const DiceInput = {
-    keyboard: null,  // Reference to real <input>
+    keyboard: null,  // Reference to real text input control
     keypad: null,    // Reference to pseudo input div
     keypadButtons: null, // Reference to keypad container
 
@@ -910,6 +917,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       this.keypadButtons = keypadButtonsNode;
     },
 
+    autoResizeKeyboard() {
+      if (!this.keyboard) return;
+      this.keyboard.style.height = 'auto';
+      this.keyboard.style.height = `${this.keyboard.scrollHeight}px`;
+    },
+
     /**
      * Switch to keyboard or keypad mode
      * @param {boolean} useKeypad
@@ -918,8 +931,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       document.body.classList.remove('force-keypad', 'force-keyboard');
       document.body.classList.add(useKeypad ? 'force-keypad' : 'force-keyboard');
       this.keyboard.disabled = useKeypad;
+      if (!useKeypad) this.autoResizeKeyboard();
     },
-
     /**
      * Update display with value and cursor position
      * @param {string} value
@@ -947,6 +960,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         this.keyboard.value = value;
         this.keyboard.setSelectionRange(cursorPos, cursorPos);
       }
+      this.autoResizeKeyboard();
     },
 
     /**
@@ -1350,7 +1364,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * @param {Event} e
        */
       onInput(e) {
+        const {value, selectionStart} = e.target;
+        const beforeCursor = value.slice(0, selectionStart);
+        const sanitizedBeforeCursor = beforeCursor.replace(/[\r\n]+/g, ' ');
+        const sanitizedValue = value.replace(/[\r\n]+/g, ' ');
+
+        if (sanitizedValue !== value) {
+          e.target.value = sanitizedValue;
+          e.target.setSelectionRange(sanitizedBeforeCursor.length, sanitizedBeforeCursor.length);
+        }
         DiceApp.actions.updateInput(e.target.value, e.target.selectionStart);
+      },
+
+      /**
+       * Prevent textarea newlines; Enter should roll instead
+       * @param {KeyboardEvent} e
+       */
+      onInputKeyDown(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          DiceApp.actions.roll();
+        }
       },
 
       /**
@@ -1835,7 +1869,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "computeResult - aggregated floor not reached, no indicator",
             test: () => {
               // 10d12 -1-4: floor=4, min achievable=9 → floor never triggers; no indicator
-              const result = DiceNotation.computeResult([6,6,6,6,6,6,6,6,6,6], {
+              const result = DiceNotation.computeResult([6, 6, 6, 6, 6, 6, 6, 6, 6, 6], {
                 count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
               });
               // rawSum=60, modifiedSum=59; 59 > 4 → no clamping
@@ -1846,7 +1880,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "computeResult - aggregated non-constraining floor gives null rangeLimit",
             test: () => {
               // 10d12 -1-4: floor=4 below min achievable=9 → limit doesn't constrain → rangeLimit=null
-              const result = DiceNotation.computeResult([6,6,6,6,6,6,6,6,6,6], {
+              const result = DiceNotation.computeResult([6, 6, 6, 6, 6, 6, 6, 6, 6, 6], {
                 count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
               });
               return result.rangeAbs.min === 9 && result.rangeAbs.max === 119 &&
@@ -1943,6 +1977,45 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // Selection should be preserved (start=1, end=3, not collapsed to 0)
               return selBefore === 1 && selEndBefore === 3 &&
                 selAfter === 1 && selEndAfter === 3;
+            }
+          },
+          {
+            name: "onInput sanitizes pasted multiline text and preserves cursor",
+            test: () => {
+              DiceApp.actions.setMode('keyboard');
+
+                  const originalValue = DiceApp.state.currentValue;
+                  const originalCursor = DiceApp.state.cursorPosition;
+
+              const fakeEvent = {
+                target: {
+                  value: '3d6\r\n4d8\n2d10\r1d4',
+                      selectionStart: '3d6\r\n4d8\n2d10'.length,
+                      selectionEnd: '3d6\r\n4d8\n2d10'.length,
+                  setSelectionRange(start, end) {
+                    this.selectionStart = start;
+                    this.selectionEnd = end;
+                  }
+                }
+              };
+
+              DiceApp.handlers.onInput(fakeEvent);
+
+                  const expectedValue = '3d6 4d8 2d10 1d4';
+                  const expectedCursor = '3d6 4d8 2d10'.length;
+
+                  const passed =
+                    fakeEvent.target.value === expectedValue &&
+                    fakeEvent.target.selectionStart === expectedCursor &&
+                    fakeEvent.target.selectionEnd === expectedCursor &&
+                    DiceApp.state.currentValue === expectedValue &&
+                    DiceApp.state.cursorPosition === expectedCursor &&
+                    !/[\r\n]/.test(fakeEvent.target.value);
+
+                  DiceApp.state.currentValue = originalValue;
+                  DiceApp.state.cursorPosition = originalCursor;
+
+                  return passed;
             }
           },
           {
@@ -2281,6 +2354,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Textarea Enter rolls without inserting newline",
+            test: () => {
+              DiceApp.actions.setMode('keyboard');
+              DiceApp.actions.updateInput('1d6');
+
+              let prevented = false;
+              const fakeEvent = {
+                key: 'Enter',
+                preventDefault: () => {
+                  prevented = true;
+                }
+              };
+
+                  const rollCountBefore = DiceApp.state.rollResults.length;
+                  const valueBefore = DiceApp.state.currentValue;
+
+              DiceApp.handlers.onInputKeyDown(fakeEvent);
+
+              return prevented === true &&
+                    DiceApp.state.currentValue === valueBefore &&
+                    !/[\r\n]/.test(DiceApp.state.currentValue) &&
+                    !/[\r\n]/.test(DiceApp.nodes.input.value) &&
+                    DiceApp.state.rollResults.length === rollCountBefore + 1;
+            }
+          },
+          {
             name: "Keyboard event ignores browser shortcuts in keypad mode",
             test: () => {
               DiceApp.actions.setMode('keypad');
@@ -2492,6 +2591,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       bindEvents() {
         DiceApp.nodes.input.addEventListener('input', (e) => DiceApp.handlers.onInput(e));
+        DiceApp.nodes.input.addEventListener('keydown', (e) => DiceApp.handlers.onInputKeyDown(e));
         DiceApp.nodes.input.addEventListener('keyup', (e) => DiceApp.handlers.onInput(e));
         DiceApp.nodes.input.addEventListener('click', (e) => DiceApp.handlers.onInput(e));
         DiceApp.nodes.keypad.addEventListener('click', (e) => DiceApp.handlers.onKeypadClick(e));

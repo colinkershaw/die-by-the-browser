@@ -357,10 +357,30 @@ test.describe('DiceApp - Mode Switching', () => {
 });
 
 test.describe('DiceApp - Visual Regression', () => {
+
   test('empty state - desktop', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
     await expect(page).toHaveScreenshot('empty-desktop.png', { fullPage: true });
+  });
+
+  test('wrapped textarea state - desktop', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const input = page.locator('#diceInput');
+
+    const beforeBox = await input.boundingBox();
+    expect(beforeBox).not.toBeNull();
+
+    await input.fill('100d100 '.repeat(100));
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+
+    const afterBox = await input.boundingBox();
+    expect(afterBox).not.toBeNull();
+    expect(afterBox.height).toBeGreaterThan(beforeBox.height);
+
+    await expect(page).toHaveScreenshot('wrapped-textarea-desktop.png', {fullPage: true});
   });
 
   test('empty state - mobile', async ({page}) => {
