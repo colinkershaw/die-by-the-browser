@@ -56,8 +56,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         :root {
             --placeholder-text: "e.g., 3d6 4d12";
-            --clamp-floor: #FFD166; /* amber */
-            --clamp-ceil:  #7FD3FF; /* cyan */
+            --clamp-floor: #7FD3FF; /* cyan */
+            --clamp-ceil:  #FFD166; /* amber */
         }
 
         body {
@@ -460,9 +460,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         /* Value was raised to floor limit: underline with offset, thicker and colored */
         .die-clamp-floor {
-            font-style: normal;                         /* remove monospace italic */
+            font-style: normal;
             text-decoration-line: underline;
-            text-decoration-thickness: 2px;             /* thicker underline */
+            text-decoration-thickness: 2px;
             text-underline-offset: 3px;
             text-decoration-color: var(--clamp-floor);
             /* subtle background to help at very small sizes (optional) */
@@ -472,9 +472,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         /* Value was lowered to ceiling limit: overline, thicker and colored */
         .die-clamp-ceiling {
-            font-style: normal;                         /* remove monospace italic */
+            font-style: normal;
             text-decoration-line: overline;
-            text-decoration-thickness: 2px;             /* thicker overline */
+            text-decoration-thickness: 2px;
             text-decoration-color: var(--clamp-ceil);
             background-image: linear-gradient(rgba(127,211,255,0.04) 0%, transparent 35%);
             border-radius: 2px;
