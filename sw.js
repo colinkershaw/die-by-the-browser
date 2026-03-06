@@ -1,4 +1,4 @@
-const CACHE_NAME = 'die-by-browser-v1.3';
+const CACHE_NAME = 'die-by-browser-v1.4';
 const ASSETS = [
   './die-by-the-browser.html',
   './manifest.json',
