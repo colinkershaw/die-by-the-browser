@@ -567,27 +567,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             display: none !important;
         }
 
-        @media (max-width: 480px) {
-            body {
-                padding: 0;
-            }
+        body.force-keypad {
+            padding: 0;
+        }
 
-            .container {
-                padding: 8px;
-                border-radius: 0;
-            }
+        body.force-keypad .container {
+            max-width: none;
+            padding: 8px;
+            border-radius: 0;
+        }
 
-            .results {
-                padding: 3px;
-            }
+        body.force-keypad .results {
+            padding: 3px;
+        }
 
-            .result-item {
-                padding: 10px 5px;
-            }
+        body.force-keypad .result-item {
+            padding: 10px 5px;
+        }
 
-            .result-rolls {
-                padding: 3px 4px;
-            }
+        body.force-keypad .result-rolls {
+            padding: 3px 4px;
         }
 
     </style>
