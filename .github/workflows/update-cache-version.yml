@@ -1,0 +1,61 @@
+name: Update Cache Version
+
+on:
+  push:
+    branches: [ 'main' ]
+
+jobs:
+  update-cache-version:
+    name: Increment CACHE_NAME and Validate Pages
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Increment CACHE_NAME version in sw.js
+        run: |
+          node -e "
+            const fs = require('fs');
+            const content = fs.readFileSync('sw.js', 'utf8');
+            const match = content.match(/CACHE_NAME\s*=\s*'([^']*)'/);
+            if (!match) { process.stderr.write('Could not find CACHE_NAME in sw.js\n'); process.exit(1); }
+            const current = match[1];
+            const vMatch = current.match(/^(.+-v)(\d+)\.(\d+)$/);
+            if (!vMatch) { process.stderr.write('Unexpected CACHE_NAME format: ' + current + '\n'); process.exit(1); }
+            const [, prefix, major, minor] = vMatch;
+            const next = prefix + major + '.' + (parseInt(minor, 10) + 1);
+            console.log('Current CACHE_NAME: ' + current);
+            console.log('New CACHE_NAME:     ' + next);
+            const updated = content.replace(/CACHE_NAME\s*=\s*'[^']*'/, \"CACHE_NAME = '\" + next + \"'\");
+            fs.writeFileSync('sw.js', updated);
+          "
+
+      - name: Commit updated sw.js
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sw.js
+          git diff --staged --quiet || git commit -m "chore: increment CACHE_NAME version [skip ci]"
+          git push
+
+      - name: Validate GitHub Pages deployment
+        run: |
+          PAGES_URL="https://colinkershaw.github.io/die-by-the-browser"
+          echo "Waiting for GitHub Pages to deploy..."
+          sleep 60
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PAGES_URL")
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::GitHub Pages validation failed: HTTP $HTTP_STATUS from $PAGES_URL"
+            exit 1
+          fi
+          echo "GitHub Pages validation passed: HTTP $HTTP_STATUS from $PAGES_URL"
