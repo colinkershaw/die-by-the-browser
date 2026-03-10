@@ -875,7 +875,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           rangeLimit = {min: count * limitMin, max: count * limitMax};
         }
         return {
-          formula, mode: 'distributed', dieResults, total, modifier, rangeRaw, rangeMod, rangeLimit, rangeAbs: rangeRaw, sides,
+          formula, mode: 'distributed', dieResults, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
           limit, limitSign, hasClamp: limit !== null
         };
       }
@@ -917,7 +917,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         rangeLimit = {min: limitMin, max: limitMax};
       }
       return {
-        formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, rangeAbs: rangeRaw, sides,
+        formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, sides,
         limit, limitSign, hasClamp: limit !== null
       };
     },
@@ -1140,14 +1140,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
          * @returns {string}
          */
         const buildRangeStr = (rangeRaw, rangeMod, rangeLimit) => {
-          const safeRangeMod = rangeMod || rangeRaw;
+          const modOrRaw = rangeMod || rangeRaw;
           if (rangeLimit) {
             return `${rangeLimit.min}–${rangeLimit.max} <span class="range-label">(Limit)</span>` +
-              `&nbsp;&nbsp;${safeRangeMod.min}–${safeRangeMod.max} <span class="range-label">(Mod)</span>` +
+              `&nbsp;&nbsp;${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
               `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Raw)</span>`;
           }
-          if (safeRangeMod.min !== rangeRaw.min || safeRangeMod.max !== rangeRaw.max) {
-            return `${safeRangeMod.min}–${safeRangeMod.max} <span class="range-label">(Mod)</span>` +
+          if (modOrRaw.min !== rangeRaw.min || modOrRaw.max !== rangeRaw.max) {
+            return `${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
               `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Raw)</span>`;
           }
           return `${rangeRaw.min}–${rangeRaw.max}`;
@@ -1212,7 +1212,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 `<span class="die-raw">=[<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}]</span>` +
                 `</span>`
               ).join('');
-              const rangeStr = buildRangeStr(r.rangeRaw || r.rangeAbs, r.rangeMod || null, r.rangeLimit);
+              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
@@ -1230,7 +1230,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
-              const rangeStr = buildRangeStr(r.rangeRaw || r.rangeAbs, r.rangeMod || null, r.rangeLimit);
+              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
