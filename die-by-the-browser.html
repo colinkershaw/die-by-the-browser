@@ -457,7 +457,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #a0aec0;
         }
 
-        /* Range label badges: (Limit) and (Abs) */
+        /* Range label badges: (Raw), (Mod), and (Limit) */
         .range-label {
             font-size: 0.85em;
             color: #718096;
@@ -825,7 +825,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * Compute roll result with modifier/limit applied.
      * @param {Uint32Array} rawRolls - Raw die values
      * @param {Object} opts - {count, sides, modifier, limit, limitSign, modifierMode}
-     * @returns {Object} Result object (mode-specific shape)
+     * @returns {Object} Result object
      */
     computeResult(rawRolls, {count, sides, modifier, limit, limitSign, modifierMode}) {
       const formula = DiceNotation.buildFormula(count, sides, modifier, limit, limitSign, modifierMode);
@@ -854,10 +854,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         });
         const total = dieResults.reduce((s, d) => s + d.result, 0);
 
-        // Range Abs: raw dice-only span. Range Limit: complete calculation span (modifier + optional limit).
-        const rangeAbs = {min: count, max: count * sides};
+        // Range Raw: raw dice-only span. Range Mod: after modifier. Range Limit: after optional clamp.
+        const rangeRaw = {min: count, max: count * sides};
         const perDieMin = 1 + modifier;
         const perDieMax = sides + modifier;
+        const rangeMod = {min: count * perDieMin, max: count * perDieMax};
         let limitMin = perDieMin;
         let limitMax = perDieMax;
         if (limit !== null) {
@@ -869,12 +870,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             limitMax = Math.min(perDieMax, limit);
           }
         }
-        let rangeLimit = {min: count * limitMin, max: count * limitMax};
-        // Discard rangeLimit when it doesn't add information (same as raw abs)
-        if (rangeLimit.min === rangeAbs.min && rangeLimit.max === rangeAbs.max) {
-          rangeLimit = null;
+        let rangeLimit = null;
+        if (limit !== null) {
+          rangeLimit = {min: count * limitMin, max: count * limitMax};
         }
-        return {formula, mode: 'distributed', dieResults, total, modifier, rangeAbs, rangeLimit, sides, limit, limitSign};
+        return {
+          formula, mode: 'distributed', dieResults, total, modifier, rangeRaw, rangeMod, rangeLimit, rangeAbs: rangeRaw, sides,
+          limit, limitSign, hasClamp: limit !== null
+        };
       }
 
       // aggregated mode
@@ -894,9 +897,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       }
       const rawMin = count;
       const rawMax = count * sides;
-      const rangeAbs = {min: rawMin, max: rawMax};
+      const rangeRaw = {min: rawMin, max: rawMax};
       const modifiedMin = rawMin + modifier;
       const modifiedMax = rawMax + modifier;
+      const rangeMod = {min: modifiedMin, max: modifiedMax};
       let limitMin = modifiedMin;
       let limitMax = modifiedMax;
       if (limit !== null) {
@@ -908,12 +912,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           limitMax = Math.min(modifiedMax, limit);
         }
       }
-      let rangeLimit = {min: limitMin, max: limitMax};
-      // Discard rangeLimit when it doesn't add information (same as raw abs)
-      if (rangeLimit.min === rangeAbs.min && rangeLimit.max === rangeAbs.max) {
-        rangeLimit = null;
+      let rangeLimit = null;
+      if (limit !== null) {
+        rangeLimit = {min: limitMin, max: limitMax};
       }
-      return {formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeAbs, rangeLimit, sides};
+      return {
+        formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, rangeAbs: rangeRaw, sides,
+        limit, limitSign, hasClamp: limit !== null
+      };
     },
 
     /**
@@ -1127,18 +1133,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const {nodes, state} = DiceApp;
 
         /**
-         * Build a range string. Shows both Limit and Abs when a limit exists,
-         * otherwise just the absolute range.
-         * @param {{min,max}} rangeAbs
+         * Build a range string. Shows calculation-vs-absolute ranges when available.
+         * @param {{min,max}} rangeRaw
+         * @param {{min,max}|null} rangeMod
          * @param {{min,max}|null} rangeLimit
          * @returns {string}
          */
-        const buildRangeStr = (rangeAbs, rangeLimit) => {
+        const buildRangeStr = (rangeRaw, rangeMod, rangeLimit) => {
+          const safeRangeMod = rangeMod || rangeRaw;
           if (rangeLimit) {
             return `${rangeLimit.min}–${rangeLimit.max} <span class="range-label">(Limit)</span>` +
-              `&nbsp;&nbsp;${rangeAbs.min}–${rangeAbs.max} <span class="range-label">(Abs)</span>`;
+              `&nbsp;&nbsp;${safeRangeMod.min}–${safeRangeMod.max} <span class="range-label">(Mod)</span>` +
+              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Raw)</span>`;
           }
-          return `${rangeAbs.min}–${rangeAbs.max}`;
+          if (safeRangeMod.min !== rangeRaw.min || safeRangeMod.max !== rangeRaw.max) {
+            return `${safeRangeMod.min}–${safeRangeMod.max} <span class="range-label">(Mod)</span>` +
+              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Raw)</span>`;
+          }
+          return `${rangeRaw.min}–${rangeRaw.max}`;
         };
 
         /**
@@ -1200,7 +1212,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 `<span class="die-raw">=[<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}]</span>` +
                 `</span>`
               ).join('');
-              const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
+              const rangeStr = buildRangeStr(r.rangeRaw || r.rangeAbs, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
@@ -1218,7 +1230,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
-              const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
+              const rangeStr = buildRangeStr(r.rangeRaw || r.rangeAbs, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
@@ -1911,26 +1923,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "computeResult - aggregated non-constraining floor keeps complete-calculation rangeLimit",
+            name: "computeResult - aggregated non-constraining floor preserves distinct Raw/Mod/Limit ranges",
             test: () => {
-              // 10d12 -1-4: raw abs is 10..120; complete calculation is 9..119; floor=4 doesn't constrain further
+              // 10d12 -1-4: raw=10..120, mod=9..119, limit=9..119 (non-constraining floor)
               const result = DiceNotation.computeResult([6, 6, 6, 6, 6, 6, 6, 6, 6, 6], {
                 count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
               });
-              return result.rangeAbs.min === 10 && result.rangeAbs.max === 120 &&
+              return result.rangeRaw.min === 10 && result.rangeRaw.max === 120 &&
+                result.rangeMod.min === 9 && result.rangeMod.max === 119 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 9 && result.rangeLimit.max === 119;
             }
           },
           {
-            name: "computeResult - distributed non-constraining floor gives null rangeLimit",
+            name: "computeResult - distributed non-constraining floor keeps Mod and Limit ranges",
             test: () => {
-              // 3d6-0 (floor=0, modifier=0): rangeAbs = {3,18}, floor=0 < min=3 → no constraint
+              // 3d6-0 (floor=0, modifier=0): raw=3..18, mod=3..18, limit=3..18
               const result = DiceNotation.computeResult([3, 3, 3], {
                 count: 3, sides: 6, modifier: 0, limit: 0, limitSign: '-', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 3 && result.rangeAbs.max === 18 &&
-                result.rangeLimit === null;
+              return result.rangeRaw.min === 3 && result.rangeRaw.max === 18 &&
+                result.rangeMod.min === 3 && result.rangeMod.max === 18 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 3 && result.rangeLimit.max === 18;
             }
           },
           {
@@ -1946,73 +1961,79 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "computeResult - aggregated rangeAbs and rangeLimit",
+            name: "computeResult - aggregated exposes Raw/Mod/Limit ranges",
             test: () => {
-              // 2d6 +3+12: raw abs is 2..12; complete calculation is 5..12 (after ceiling)
+              // 2d6 +3+12: raw=2..12, mod=5..15, limit=5..12
               const result = DiceNotation.computeResult([3, 3], {
                 count: 2, sides: 6, modifier: 3, limit: 12, limitSign: '+', modifierMode: 'aggregated'
               });
-              return result.rangeAbs.min === 2 && result.rangeAbs.max === 12 &&
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
+                result.rangeMod.min === 5 && result.rangeMod.max === 15 &&
                 result.rangeLimit !== null &&
-                result.rangeLimit.min === 5 && result.rangeLimit.max === 12;
+                result.rangeLimit.min === 5 && result.rangeLimit.max === 12 &&
+                result.limit === 12 && result.limitSign === '+' && result.hasClamp === true;
             }
           },
           {
-            name: "computeResult - distributed penalty, rangeAbs and rangeLimit",
+            name: "computeResult - distributed penalty exposes Raw/Mod/Limit ranges",
             test: () => {
-              // 3d4-3-1 (floor=1): raw abs is 3..12; complete calculation range is 3..3
+              // 3d4-3-1: raw=3..12, mod=-6..3, limit=3..3
               const result = DiceNotation.computeResult([4, 1, 2], {
                 count: 3, sides: 4, modifier: -3, limit: 1, limitSign: '-', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 3 && result.rangeAbs.max === 12 &&
+              return result.rangeRaw.min === 3 && result.rangeRaw.max === 12 &&
+                result.rangeMod.min === -6 && result.rangeMod.max === 3 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 3 && result.rangeLimit.max === 3;
             }
           },
           {
-            name: "computeResult - distributed bonus, rangeAbs and rangeLimit",
+            name: "computeResult - distributed bonus exposes Raw/Mod/Limit ranges",
             test: () => {
-              // 2d4+5+7 (ceiling=7): raw abs is 2..8; complete calculation range is 12..14
+              // 2d4+5+7: raw=2..8, mod=12..18, limit=12..14
               const result = DiceNotation.computeResult([3, 4], {
                 count: 2, sides: 4, modifier: 5, limit: 7, limitSign: '+', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 2 && result.rangeAbs.max === 8 &&
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 8 &&
+                result.rangeMod.min === 12 && result.rangeMod.max === 18 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 12 && result.rangeLimit.max === 14;
             }
           },
           {
-            name: "computeResult - distributed no limit, rangeAbs only",
+            name: "computeResult - distributed modifier-only exposes Raw and Mod ranges",
             test: () => {
-              // 2d6-2 (no explicit limit): raw abs is 2..12; complete calculation range is -2..8
+              // 2d6-2 (no explicit limit): raw=2..12, mod=-2..8, no limit range
               const result = DiceNotation.computeResult([4, 3], {
                 count: 2, sides: 6, modifier: -2, limit: null, limitSign: null, modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 2 && result.rangeAbs.max === 12 &&
-                result.rangeLimit !== null &&
-                result.rangeLimit.min === -2 && result.rangeLimit.max === 8;
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
+                result.rangeMod.min === -2 && result.rangeMod.max === 8 &&
+                result.rangeLimit === null &&
+                result.limit === null && result.limitSign === null && result.hasClamp === false;
             }
           },
           {
-            name: "computeResult - distributed +modifier no explicit limit reports complete rangeLimit",
+            name: "computeResult - distributed +modifier no explicit limit has Raw/Mod only",
             test: () => {
-              // 10d100+10: raw abs is 10..1000; complete calculation range is 110..1100
+              // 10d100+10: raw=10..1000, mod=110..1100, no limit range
               const result = DiceNotation.computeResult([50, 50, 50, 50, 50, 50, 50, 50, 50, 50], {
                 count: 10, sides: 100, modifier: 10, limit: null, limitSign: null, modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 10 && result.rangeAbs.max === 1000 &&
-                result.rangeLimit !== null &&
-                result.rangeLimit.min === 110 && result.rangeLimit.max === 1100;
+              return result.rangeRaw.min === 10 && result.rangeRaw.max === 1000 &&
+                result.rangeMod.min === 110 && result.rangeMod.max === 1100 &&
+                result.rangeLimit === null;
             }
           },
           {
-            name: "computeResult - distributed +modifier+ceiling keeps raw abs and clamps complete rangeLimit",
+            name: "computeResult - distributed +modifier+ceiling keeps Raw/Mod and clamps Limit",
             test: () => {
-              // 10d100+10+101: raw abs is 10..1000; complete calculation range is 110..1010
+              // 10d100+10+101: raw=10..1000, mod=110..1100, limit=110..1010
               const result = DiceNotation.computeResult([50, 50, 50, 50, 50, 50, 50, 50, 50, 50], {
                 count: 10, sides: 100, modifier: 10, limit: 101, limitSign: '+', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 10 && result.rangeAbs.max === 1000 &&
+              return result.rangeRaw.min === 10 && result.rangeRaw.max === 1000 &&
+                result.rangeMod.min === 110 && result.rangeMod.max === 1100 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 110 && result.rangeLimit.max === 1010;
             }
@@ -2024,7 +2045,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.computeResult([4, 1], {
                 count: 2, sides: 4, modifier: -1, limit: 10, limitSign: '-', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 2 && result.rangeAbs.max === 8 &&
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 8 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 20 && result.rangeLimit.max === 20;
             }
@@ -2036,9 +2057,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.computeResult([6, 6], {
                 count: 2, sides: 6, modifier: 3, limit: 1, limitSign: '+', modifierMode: 'aggregated'
               });
-              return result.rangeAbs.min === 2 && result.rangeAbs.max === 12 &&
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 1 && result.rangeLimit.max === 1;
+            }
+          },
+          {
+            name: "renderResults - modifier-only range uses Mod and Raw labels (not Limit)",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d6-2',
+                mode: 'distributed',
+                dieResults: [{raw: 4, result: 2, indicator: ''}, {raw: 3, result: 1, indicator: ''}],
+                total: 3,
+                modifier: -2,
+                rangeRaw: {min: 2, max: 12},
+                rangeMod: {min: -2, max: 8},
+                rangeLimit: null,
+                sides: 6,
+                limit: null,
+                limitSign: null,
+                hasClamp: false
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const html = DiceApp.nodes.results.innerHTML;
+              return html.includes('(Mod)') && html.includes('(Raw)') && !html.includes('(Limit)');
             }
           },
           {
