@@ -468,7 +468,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #a0aec0;
         }
 
-        /* Range label badges: (Raw), (Mod), and (Limit) */
+        /* Range label badges: (Abs), (Mod), and (Limit) */
         .range-label {
             font-size: 0.85em;
             color: #718096;
@@ -1069,6 +1069,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       cursorPosition: 0,
       mode: 'auto', // 'auto', 'keyboard', or 'keypad'
       resolvedMode: null, // Actual mode after resolution: 'keyboard' or 'keypad'
+      maximizeResults: false,
       rollResults: [],
       errorMessage: ''
     },
@@ -1145,6 +1146,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         DiceInput.setMode(isKeypad);
         DiceInput.setValue(state.currentValue, state.cursorPosition, isKeypad);
+        document.body.classList.toggle('maximize-results', state.maximizeResults);
       },
 
       /**
@@ -1165,11 +1167,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           if (rangeLimit) {
             return `${rangeLimit.min}–${rangeLimit.max} <span class="range-label">(Limit)</span>` +
               `&nbsp;&nbsp;${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
-              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Raw)</span>`;
+              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Abs)</span>`;
           }
           if (modOrRaw.min !== rangeRaw.min || modOrRaw.max !== rangeRaw.max) {
             return `${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
-              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Raw)</span>`;
+              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Abs)</span>`;
           }
           return `${rangeRaw.min}–${rangeRaw.max}`;
         };
@@ -1291,9 +1293,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const menuItems = nodes.menu.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
           const mode = item.dataset.mode;
+          const setting = item.dataset.setting;
           const check = item.querySelector('.menu-check');
 
-          if (mode === state.mode) {
+          const isActive = (mode && mode === state.mode) ||
+            (setting === 'maximize-results' && state.maximizeResults);
+
+          if (isActive) {
             item.classList.add('active');
             if (check) check.style.display = 'block';
           } else {
@@ -1421,6 +1427,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             state.resolvedMode = 'keyboard';
           }
         }
+      },
+
+      toggleMaximizeResults() {
+        const {state, ui} = DiceApp;
+        state.maximizeResults = !state.maximizeResults;
+        ui.renderAll();
+        ui.closeMenu();
       }
     },
 
@@ -1576,6 +1589,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (!menuItem) return;
 
         const mode = menuItem.dataset.mode;
+        const setting = menuItem.dataset.setting;
+        if (setting === 'maximize-results') {
+          DiceApp.actions.toggleMaximizeResults();
+          return;
+        }
         DiceApp.actions.setMode(mode);
       },
 
@@ -2084,7 +2102,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "renderResults - modifier-only range uses Mod and Raw labels (not Limit)",
+            name: "renderResults - modifier-only range uses Mod and Abs labels (not Limit)",
             test: () => {
               DiceApp.state.rollResults = [{
                 formula: '2d6-2',
@@ -2103,7 +2121,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.state.errorMessage = '';
               DiceApp.ui.renderResults();
               const html = DiceApp.nodes.results.innerHTML;
-              return html.includes('(Mod)') && html.includes('(Raw)') && !html.includes('(Limit)');
+              return html.includes('(Mod)') && html.includes('(Abs)') && !html.includes('(Limit)');
             }
           },
           {
@@ -2586,6 +2604,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Roll/Clear buttons stay visible in keypad mode",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              const rollVisible = getComputedStyle(DiceApp.nodes.rollBtn).display !== 'none';
+              const clearVisible = getComputedStyle(DiceApp.nodes.clearBtn).display !== 'none';
+              return rollVisible && clearVisible;
+            }
+          },
+          {
+            name: "Maximize results toggle is independent from input mode",
+            test: () => {
+              DiceApp.state.maximizeResults = false;
+              DiceApp.actions.setMode('keyboard');
+              DiceApp.actions.toggleMaximizeResults();
+              const maximizedOnKeyboard = DiceApp.state.maximizeResults === true &&
+                document.body.classList.contains('maximize-results');
+              DiceApp.actions.setMode('keypad');
+              const preservedInKeypad = DiceApp.state.maximizeResults === true &&
+                document.body.classList.contains('maximize-results');
+              return maximizedOnKeyboard && preservedInKeypad;
+            }
+          },
+          {
             name: "Cursor position preserved when switching from keypad to keyboard",
             test: () => {
               DiceApp.actions.setMode('keypad');
@@ -2627,6 +2668,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             currentValue: DiceApp.state.currentValue,
             cursorPosition: DiceApp.state.cursorPosition,
             mode: DiceApp.state.mode,
+            maximizeResults: DiceApp.state.maximizeResults,
             inputValue: DiceApp.nodes.input.value,
             displayHTML: DiceApp.nodes.display.innerHTML,
             displayClasses: DiceApp.nodes.display.className,
@@ -2662,6 +2704,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             DiceApp.state.currentValue = savedState.currentValue;
             DiceApp.state.cursorPosition = savedState.cursorPosition;
             DiceApp.state.mode = savedState.mode;
+            DiceApp.state.maximizeResults = savedState.maximizeResults;
             DiceApp.state.rollResults = [];
             DiceApp.state.errorMessage = '';
             DiceApp.nodes.input.value = savedState.inputValue;
