@@ -184,6 +184,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             font-size: 1.2em;
         }
 
+        .menu-separator {
+            border: 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+            margin: 8px 6px;
+        }
+
         .input-section {
             margin-bottom: 20px;
         }
@@ -330,6 +336,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
+        }
+
+        .keypad-group {
+            width: min(100%, 420px);
+            margin: 0 auto;
         }
 
         button {
@@ -553,9 +564,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         body.force-keypad .keypad {
             display: grid !important;
-            width: min(100%, 420px);
-            margin-left: auto;
-            margin-right: auto;
         }
 
         body.force-keyboard #diceInput {
@@ -575,9 +583,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         body.force-keypad .container {
-            max-width: none;
             padding: 8px;
             border-radius: 0;
+        }
+
+        body.maximize-results .container {
+            max-width: none;
         }
 
         body.force-keypad .results {
@@ -618,6 +629,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             <span class="menu-label">Onscreen Keypad</span>
             <span class="menu-check">✓</span>
         </div>
+        <hr class="menu-separator">
+        <div class="menu-item" data-setting="maximize-results">
+            <span class="menu-label">Maximize Results</span>
+            <span class="menu-check">✓</span>
+        </div>
     </div>
 
     <div class="input-section">
@@ -625,30 +641,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         <div id="dicePseudoInput" class="empty"></div>
     </div>
 
-    <div class="keypad" id="keypad">
-        <button class="key" data-value="1">1</button>
-        <button class="key" data-value="2">2</button>
-        <button class="key" data-value="3">3</button>
-        <button class="key" data-value="4">4</button>
-        <button class="key" data-value="5">5</button>
-        <button class="key" data-value="6">6</button>
-        <button class="key" data-value="7">7</button>
-        <button class="key" data-value="8">8</button>
-        <button class="key" data-value="9">9</button>
-        <button class="key special" data-value="d">d</button>
-        <button class="key" data-value="0">0</button>
-        <button class="key special" data-value=" ">␣</button>
-        <button class="key operator" data-value="-">-</button>
-        <button class="key operator" data-value="+">+</button>
-        <button class="key operator" data-value="!">!</button>
-        <button class="key nav" data-action="ArrowLeft">←</button>
-        <button class="key delete" data-action="Backspace">⌫</button>
-        <button class="key nav" data-action="ArrowRight">→</button>
-    </div>
+    <div class="keypad-group">
+        <div class="keypad" id="keypad">
+            <button class="key" data-value="1">1</button>
+            <button class="key" data-value="2">2</button>
+            <button class="key" data-value="3">3</button>
+            <button class="key" data-value="4">4</button>
+            <button class="key" data-value="5">5</button>
+            <button class="key" data-value="6">6</button>
+            <button class="key" data-value="7">7</button>
+            <button class="key" data-value="8">8</button>
+            <button class="key" data-value="9">9</button>
+            <button class="key special" data-value="d">d</button>
+            <button class="key" data-value="0">0</button>
+            <button class="key special" data-value=" ">␣</button>
+            <button class="key operator" data-value="-">-</button>
+            <button class="key operator" data-value="+">+</button>
+            <button class="key operator" data-value="!">!</button>
+            <button class="key nav" data-action="ArrowLeft">←</button>
+            <button class="key delete" data-action="Backspace">⌫</button>
+            <button class="key nav" data-action="ArrowRight">→</button>
+        </div>
 
-    <div class="button-group">
-        <button id="rollBtn">Roll Dice</button>
-        <button id="clearBtn">Clear</button>
+        <div class="button-group">
+            <button id="rollBtn">Roll Dice</button>
+            <button id="clearBtn">Clear</button>
+        </div>
     </div>
 
     <div class="results" id="results"></div>
