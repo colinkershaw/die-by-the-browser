@@ -641,6 +641,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             padding: 0;
         }
 
+        body.fit-to-width {
+            padding: 0;
+            align-items: flex-start;
+        }
+
+        body.fit-to-width .container {
+            border-radius: 0;
+            box-shadow: none;
+        }
+
         body.force-keypad .container {
             padding: 8px;
             border-radius: 0;
@@ -1191,13 +1201,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Update the entire UI from Model
        */
       renderAll() {
-        this.renderContainer();
+        this.syncLayoutClasses();
         this.renderMode();
         this.renderResults();
         this.renderMenu();
       },
 
-      renderContainer() {
+      syncLayoutClasses() {
         document.body.classList.toggle('fit-to-width', DiceApp.state.fitToWidth);
       },
 
