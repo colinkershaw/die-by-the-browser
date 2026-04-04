@@ -2006,6 +2006,201 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Parse exploding notation - !",
+            test: () => {
+              const result = DiceNotation.parse("2d6!");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'standard' && c[0].explodeThreshold === 6;
+            }
+          },
+          {
+            name: "Parse exploding notation - !!",
+            test: () => {
+              const result = DiceNotation.parse("2d6!!");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'compound' && c[0].explodeThreshold === 6;
+            }
+          },
+          {
+            name: "Parse threshold exploding notation - !Y",
+            test: () => {
+              const result = DiceNotation.parse("2d10!8");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'standard' && c[0].explodeThreshold === 8;
+            }
+          },
+          {
+            name: "Reject invalid threshold exploding notation - below minimum",
+            test: () => {
+              const result = DiceNotation.parse("2d10!1");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
+            }
+          },
+          {
+            name: "Reject invalid threshold exploding notation - above sides",
+            test: () => {
+              const result = DiceNotation.parse("2d10!11");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
+            }
+          },
+          {
+            name: "Parse keep high filter - ++",
+            test: () => {
+              const result = DiceNotation.parse("2d20++1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'keep' && c[0].filterDirection === 'high' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse keep low filter - +-",
+            test: () => {
+              const result = DiceNotation.parse("2d20+-1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'keep' && c[0].filterDirection === 'low' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse drop high filter - -+",
+            test: () => {
+              const result = DiceNotation.parse("4d6-+1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'drop' && c[0].filterDirection === 'high' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse drop low filter - --",
+            test: () => {
+              const result = DiceNotation.parse("4d6--1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'drop' && c[0].filterDirection === 'low' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Reject filter count zero",
+            test: () => {
+              const result = DiceNotation.parse("4d6--0");
+              return result.collections === null && result.error === 'INVALID_FORMAT';
+            }
+          },
+          {
+            name: "computeResult - standard explosion creates chain",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 2], {
+                count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 6
+              }, () => 4);
+              return result.total === 12 &&
+                result.rollDetails.length === 2 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[0].chain[0] === 6 &&
+                result.rollDetails[0].chain[1] === 4 &&
+                result.rollDetails[0].displayValue === 10 &&
+                result.rollDetails[1].displayValue === 2;
+            }
+          },
+          {
+            name: "computeResult - compounding explosion compounds die value",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 2], {
+                count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'compound', explodeThreshold: 6
+              }, () => 4);
+              return result.total === 12 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[0].compound === true &&
+                result.rollDetails[0].displayValue === 10 &&
+                result.rollDetails[1].displayValue === 2;
+            }
+          },
+          {
+            name: "computeResult - threshold explosion uses >= Y",
+            test: () => {
+              const result = DiceNotation.computeResult([8, 7], {
+                count: 2, sides: 10, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 8
+              }, () => 5);
+              return result.total === 20 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[1].chain.length === 1;
+            }
+          },
+          {
+            name: "computeResult - explosion recursion cap",
+            test: () => {
+              const result = DiceNotation.computeResult([6], {
+                count: 1, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 6
+              }, () => 6);
+              return result.rollDetails[0].chain.length === 21 && result.total === 126;
+            }
+          },
+          {
+            name: "computeResult - keep high filters lowest dice",
+            test: () => {
+              const result = DiceNotation.computeResult([18, 4], {
+                count: 2, sides: 20, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'high', filterCount: 1
+              });
+              return result.total === 18 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].kept === false;
+            }
+          },
+          {
+            name: "computeResult - drop low filters lowest dice",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5, 2, 1], {
+                count: 4, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'drop', filterDirection: 'low', filterCount: 1
+              });
+              return result.total === 13 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].kept === true &&
+                result.rollDetails[2].kept === true &&
+                result.rollDetails[3].kept === false;
+            }
+          },
+          {
+            name: "computeResult - oversized filter defaults to keep all",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5, 2, 1], {
+                count: 4, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'high', filterCount: 4
+              });
+              return result.total === 14 && result.rollDetails.every(d => d.kept === true);
+            }
+          },
+          {
+            name: "computeResult - critical detection nat max and nat 1",
+            test: () => {
+              const result = DiceNotation.computeResult([20, 1], {
+                count: 2, sides: 20, modifier: 0, limit: null, limitSign: null, modifierMode: 'none'
+              });
+              return result.rollDetails[0].isCriticalSuccess === true &&
+                result.rollDetails[1].isCriticalFailure === true;
+            }
+          },
+          {
+            name: "computeResult - precedence explode then filter then modifier",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5], {
+                count: 2, sides: 6, modifier: 1, limit: null, limitSign: null, modifierMode: 'distributed',
+                explodeMode: 'standard', explodeThreshold: 6,
+                filterAction: 'keep', filterDirection: 'high', filterCount: 1
+              }, () => 4);
+              return result.total === 11 &&
+                result.rollDetails[0].displayValue === 10 &&
+                result.rollDetails[1].kept === false;
+            }
+          },
+          {
             name: "computeResult - distributed penalty with floor (indicator *)",
             test: () => {
               // 3d4-3-1: rolls [4, 1, 2], floor=1
