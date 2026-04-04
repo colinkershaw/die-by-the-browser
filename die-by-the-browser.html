@@ -1132,9 +1132,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Update the entire UI from Model
        */
       renderAll() {
+        this.renderLayout();
         this.renderMode();
         this.renderResults();
         this.renderMenu();
+      },
+
+      renderLayout() {
+        document.body.classList.toggle('maximize-results', DiceApp.state.maximizeResults);
       },
 
       /**
@@ -1232,7 +1237,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const rollsDisplay = r.dieResults.map(d =>
                 `<span class="die-cell" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${d.raw})">` +
                 gameSpan(d.result, d.indicator, maxGameWidth) +
-                `<span class="die-raw">=[<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}]</span>` +
+                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}</span>` +
                 `</span>`
               ).join('');
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
