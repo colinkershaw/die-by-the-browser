@@ -77,7 +77,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         .container {
-            background: #1a2238;
+            background: #0B1637;
             color: #ffffff;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -110,10 +110,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         .title-icon {
-            width: 1em;
-            height: 1em;
+            width: 2.3em;
+            height: 2.3em;
             margin-right: 0.3em;
-            vertical-align: -0.12em;
+            vertical-align: -0.5em;
         }
 
         .hamburger {
@@ -163,18 +163,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            padding: 16px;
-            color: #b8c4e0;
-            font-weight: 500;
+            gap: 15px;
+            padding: 24px 32px;
+            background: rgba(11, 22, 55, 0.9);
+            backdrop-filter: blur(8px);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(42, 227, 243, 0.3);
+            color: #2AE3F3;
+            font-weight: 600;
+            font-size: 1.2em;
+            z-index: 2000;
         }
 
         .spinner {
-            width: 16px;
-            height: 16px;
+            width: 24px;
+            height: 24px;
             border: 2px solid rgba(42, 227, 243, 0.3);
             border-top-color: #2AE3F3;
             border-radius: 50%;
@@ -402,6 +413,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             background: #23cbd9;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(42, 227, 243, 0.4);
+        }
+
+        #rollBtn:disabled {
+            background: #252d4a;
+            color: #718096;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.7;
         }
 
         #clearBtn {
@@ -1171,13 +1191,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Update the entire UI from Model
        */
       renderAll() {
-        this.renderLayout();
+        this.renderContainer();
         this.renderMode();
         this.renderResults();
         this.renderMenu();
       },
 
-      renderLayout() {
+      renderContainer() {
         document.body.classList.toggle('fit-to-width', DiceApp.state.fitToWidth);
       },
 
@@ -1190,7 +1210,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         DiceInput.setMode(isKeypad);
         DiceInput.setValue(state.currentValue, state.cursorPosition, isKeypad);
-        document.body.classList.toggle('fit-to-width', state.fitToWidth);
       },
 
       /**
@@ -1327,6 +1346,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (nodes.results.innerHTML !== newHTML) {
           nodes.results.innerHTML = newHTML;
         }
+
+        // Disable roll and clear buttons while rolling
+        if (nodes.rollBtn) {
+          nodes.rollBtn.disabled = state.isRolling;
+        }
+        if (nodes.clearBtn) {
+          nodes.clearBtn.disabled = state.isRolling;
+        }
       },
 
       /**
@@ -1389,7 +1416,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       roll() {
         const {state, utils, ui} = DiceApp;
+
+        if (state.isRolling) {
+          return;
+        }
+
         const notation = state.currentValue;
+
         const {collections: parsed, error} = DiceNotation.parse(notation);
 
         if (!parsed) {
@@ -1416,11 +1449,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           }
 
           utils.setQueryParam('dice', notation);
-          state.isRolling = false;
-          ui.renderAll();
+          setTimeout(() => {
+            state.isRolling = false;
+            ui.renderAll();
+          }, 0);
         };
 
         const estimatedDiceCount = parsed.reduce((sum, coll) => sum + (coll.batchCount * coll.count), 0);
+
         if (estimatedDiceCount >= 5000) {
           state.errorMessage = '';
           state.rollResults = [];
@@ -1430,8 +1466,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           return;
         }
 
-        state.errorMessage = '';
-        state.isRolling = false;
         computeAndRender();
       },
 
@@ -1440,11 +1474,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       clear() {
         const {state, utils, ui} = DiceApp;
+
+        if (state.isRolling) {
+          return;
+        }
+
         state.currentValue = '';
         state.cursorPosition = 0;
         state.rollResults = [];
         state.errorMessage = '';
-        state.isRolling = false;
 
         // Use setTimeout to ensure DOM updates before hash changes
         setTimeout(() => {
@@ -1521,17 +1559,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           e.target.setSelectionRange(sanitizedBeforeCursor.length, sanitizedBeforeCursor.length);
         }
         DiceApp.actions.updateInput(e.target.value, e.target.selectionStart);
-      },
-
-      /**
-       * Prevent textarea newlines; Enter should roll instead
-       * @param {KeyboardEvent} e
-       */
-      onInputKeyDown(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          DiceApp.actions.roll();
-        }
       },
 
       /**
@@ -1621,16 +1648,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Handle keyboard input globally (works in both modes)
        */
       onKeyDownGlobal(e) {
-        const {ui, actions} = DiceApp;
+        const {ui, actions, state} = DiceApp;
 
         // Global shortcuts (work in both modes)
         if (e.key === 'Escape') {
-          actions.clear();
+          if (!state.isRolling) {
+            actions.clear();
+          }
           return;
         }
 
         if (e.key === 'Enter') {
-          actions.roll();
+          e.preventDefault(); // Prevent textarea newlines; Enter should roll instead
+          if (!state.isRolling) {
+            actions.roll();
+          }
           return;
         }
 
@@ -1643,7 +1675,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const mapped = this.keyMap[e.key];
           if (mapped) {
             e.preventDefault();
-            mapped();
+            if (!state.isRolling) {
+              mapped();
+            }
           }
         }
       },
@@ -2251,6 +2285,61 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Roll action shows spinner for large rolls",
+            async: true,
+            test: async () => {
+              const originalResults = DiceApp.state.rollResults;
+              DiceApp.actions.updateInput('5000d6');
+              
+              DiceApp.actions.roll();
+              const isRollingDuring = DiceApp.state.isRolling;
+              
+              await new Promise(resolve => setTimeout(resolve, 50));
+              
+              const isRollingAfter = DiceApp.state.isRolling;
+              const hasResults = DiceApp.state.rollResults.length > 0;
+              
+              DiceApp.state.rollResults = originalResults;
+              return isRollingDuring === true && isRollingAfter === false && hasResults === true;
+            }
+          },
+          {
+            name: "Roll and Clear buttons are disabled during rolling",
+            async: true,
+            test: async () => {
+              const originalResults = DiceApp.state.rollResults;
+              DiceApp.actions.updateInput('5000d6');
+              
+              DiceApp.actions.roll();
+              const isRollDisabledDuring = DiceApp.nodes.rollBtn.disabled;
+              const isClearDisabledDuring = DiceApp.nodes.clearBtn.disabled;
+              
+              await new Promise(resolve => setTimeout(resolve, 50));
+              
+              const isRollDisabledAfter = DiceApp.nodes.rollBtn.disabled;
+              const isClearDisabledAfter = DiceApp.nodes.clearBtn.disabled;
+              
+              DiceApp.state.rollResults = originalResults;
+              return isRollDisabledDuring === true && isRollDisabledAfter === false &&
+                     isClearDisabledDuring === true && isClearDisabledAfter === false;
+            }
+          },
+          {
+            name: "Roll action does not show spinner for small rolls",
+            test: () => {
+              const originalResults = DiceApp.state.rollResults;
+              // 4999 is just below the 5000 threshold
+              DiceApp.actions.updateInput('4999d6');
+              
+              DiceApp.actions.roll();
+              const isRolling = DiceApp.state.isRolling;
+              const hasResults = DiceApp.state.rollResults.length > 0;
+              
+              DiceApp.state.rollResults = originalResults;
+              return isRolling === false && hasResults === true;
+            }
+          },
+          {
             name: "computeResult - basic roll (no modifier)",
             test: () => {
               const result = DiceNotation.computeResult([3, 4, 2], {
@@ -2272,6 +2361,80 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           {
             name: "buildFormula - aggregated bonus with ceiling",
             test: () => DiceNotation.buildFormula(4, 6, 5, 20, '+', 'aggregated') === '4d6 +5+20'
+          },
+          {
+            name: "Enter and Escape keys are ignored during rolling",
+            async: true,
+            test: async () => {
+              const {state, handlers, actions} = DiceApp;
+              const originalResults = state.rollResults;
+              actions.updateInput('5000d6');
+              
+              actions.roll();
+              // Now we are rolling
+              let rollCalled = false;
+              let clearCalled = false;
+              
+              // Mock actions to see if they are called again
+              const originalRoll = actions.roll;
+              const originalClear = actions.clear;
+              actions.roll = () => { rollCalled = true; };
+              actions.clear = () => { clearCalled = true; };
+              
+              try {
+                // Simulate Enter
+                handlers.onKeyDownGlobal({ key: 'Enter', preventDefault: () => {} });
+                // Simulate Escape
+                handlers.onKeyDownGlobal({ key: 'Escape', preventDefault: () => {} });
+
+              } finally {
+                // Restore
+                actions.roll = originalRoll;
+                actions.clear = originalClear;
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 50));
+              state.rollResults = originalResults;
+              
+              // Now that we've waited, check if events that occurred during roll 
+              // (which would be processed in the next tick after computeAndRender)
+              // were correctly ignored because isRolling was still true for that tick.
+              return rollCalled === false && clearCalled === false;
+            }
+          },
+          {
+            name: "Multiple Enter presses during roll are ignored",
+            async: true,
+            test: async () => {
+              const {state, handlers, actions} = DiceApp;
+              const originalResults = state.rollResults;
+              actions.updateInput('5000d6');
+              
+              actions.roll();
+              // isRolling is now true
+              
+              let rollCount = 0;
+              const originalRoll = actions.roll;
+              actions.roll = () => { rollCount++; originalRoll.apply(actions); };
+              
+              try {
+                // Simulate multiple Enters that would be queued
+                // In a real browser, these would be queued during the sync computeAndRender.
+                // Here we just call them.
+                handlers.onKeyDownGlobal({ key: 'Enter', preventDefault: () => {} });
+                handlers.onKeyDownGlobal({ key: 'Enter', preventDefault: () => {} });
+              } finally {
+                actions.roll = originalRoll;
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+              state.rollResults = originalResults;
+              
+              // Should only have been called once (the initial one)
+              // Wait, I called it manually above once, so rollCount should be 0 if ignored,
+              // but it was ALREADY true when I called handlers.
+              return rollCount === 0;
+            }
           },
           {
             name: "Roll action produces batch groups",
@@ -2602,7 +2765,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                   const rollCountBefore = DiceApp.state.rollResults.length;
                   const valueBefore = DiceApp.state.currentValue;
 
-              DiceApp.handlers.onInputKeyDown(fakeEvent);
+              DiceApp.handlers.onKeyDownGlobal(fakeEvent);
 
               return prevented === true &&
                     DiceApp.state.currentValue === valueBefore &&
@@ -2849,7 +3012,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       bindEvents() {
         DiceApp.nodes.input.addEventListener('input', (e) => DiceApp.handlers.onInput(e));
-        DiceApp.nodes.input.addEventListener('keydown', (e) => DiceApp.handlers.onInputKeyDown(e));
         DiceApp.nodes.input.addEventListener('keyup', (e) => DiceApp.handlers.onInput(e));
         DiceApp.nodes.input.addEventListener('click', (e) => DiceApp.handlers.onInput(e));
         DiceApp.nodes.keypad.addEventListener('click', (e) => DiceApp.handlers.onKeypadClick(e));
