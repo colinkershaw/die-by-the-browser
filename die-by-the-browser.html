@@ -57,8 +57,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         :root {
             --placeholder-text: "e.g., 3d6 4d12";
             --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
-            --clamp-floor: #7FD3FF; /* cyan */
-            --clamp-ceil:  #FFD166; /* amber */
+            --clamp-floor: #FFFFFF;
+            --clamp-ceil:  #FFD166;
+
+            --glow-core:      42, 227, 243;
+            --glow-mid:        0, 180, 255;
+
+            --glow2-core:     220, 139, 249;
+            --glow2-mid:      213, 142, 249;
+
+            --inner-spread:   6px;
+            --inner-opacity:  0.50;
+            --outer-spread:   10px;
+            --outer-opacity:  0.80;
+            --border-opacity: 0.70;
         }
 
         body {
@@ -583,6 +595,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             text-decoration-line: overline;
             text-decoration-thickness: 2px;
             text-decoration-color: var(--clamp-ceil);
+        }
+
+        .die-explode-standard {
+            border-color: rgba(var(--glow-core), var(--border-opacity)) !important;
+            box-shadow:
+                0 0 var(--inner-spread) rgba(var(--glow-core), var(--inner-opacity)),
+                0 0 var(--outer-spread) rgba(var(--glow-mid), var(--outer-opacity));
+        }
+
+        .die-explode-compound {
+            border-color: rgba(var(--glow2-core), var(--border-opacity)) !important;
+            box-shadow:
+                0 0 var(--inner-spread) rgba(var(--glow2-core), var(--inner-opacity)),
+                0 0 var(--outer-spread) rgba(var(--glow2-mid), var(--outer-opacity));
+        }
+
+        .die-compound-val {
+            font-style: italic;
         }
 
         /* Each die-cell keeps game-result + raw-math together when wrapping */
@@ -1478,6 +1508,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       renderResults() {
         const {nodes, state} = DiceApp;
+        const stripExplodeMarkers = (value) => `${value}`.replace(/!/g, '');
+        const isExploded = (die) => Array.isArray(die?.chain) && die.chain.length > 1;
 
         /**
          * Build a range string. Shows calculation-vs-absolute ranges when available.
@@ -1532,16 +1564,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
              * @param {number} minWidth - ch width for alignment
              * @returns {string}
              */
-            const gameSpan = (val, indicator, minWidth, extraClassName = '') => {
+            const gameSpan = (val, indicator, minWidth, extraClassName = '', chipClassName = '') => {
               const extraClass = extraClassName ? ` ${extraClassName}` : '';
-              const inner = `<span class="die-game-val${extraClass}" style="min-width:${minWidth}ch">${val}</span>`;
+              const cleanVal = stripExplodeMarkers(val);
+              const inner = `<span class="die-game-val${extraClass}" style="min-width:${minWidth}ch">${cleanVal}</span>`;
+              const classes = ['die-game'];
+              if (indicator === '*') classes.push('die-clamp-floor');
+              if (indicator === '^') classes.push('die-clamp-ceiling');
+              if (chipClassName) classes.push(chipClassName);
               if (indicator === '*') {
-                return `<span class="die-game die-clamp-floor">${inner}</span>`;
+                return `<span class="${classes.join(' ')}">${inner}</span>`;
               }
               if (indicator === '^') {
-                return `<span class="die-game die-clamp-ceiling">${inner}</span>`;
+                return `<span class="${classes.join(' ')}">${inner}</span>`;
               }
-              return `<span class="die-game">${inner}</span>`;
+              return `<span class="${classes.join(' ')}">${inner}</span>`;
             };
 
             if (r.mode === 'distributed') {
@@ -1552,9 +1589,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // A ceiling limit (+) is the true maximum displayed value (result ≤ limit by definition).
               const theorMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
               const theorMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
-              const maxGameWidth = Math.max(String(theorMinGame).length, String(theorMaxGame).length);
-              // Theoretical max raw-value width (always 1..sides)
-              const maxRawWidth = String(r.sides).length;
+              const hasCompoundExplode = r.dieResults.some(d => d.compound);
+              const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
+              const maxGameWidth = hasCompoundExplode
+                ? compoundWidth
+                : Math.max(String(theorMinGame).length, String(theorMaxGame).length);
+              const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
 
               const rollsDisplay = r.dieResults.map(d => {
                 const criticalClass = d.isCriticalSuccess
@@ -1563,11 +1603,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                     ? 'die-critical-failure'
                     : '';
                 const droppedClass = d.isDropped ? 'die-dropped' : '';
-                const rawText = d.rawDisplay || `${d.raw}`;
-                const gameText = d.resultDisplay || `${d.result}`;
+                const exploded = isExploded(d);
+                const isCompoundExplode = d.compound === true;
+                const chipGlowClass = exploded
+                  ? (isCompoundExplode ? 'die-explode-compound' : 'die-explode-standard')
+                  : '';
+                const rawText = stripExplodeMarkers(d.rawDisplay || `${d.raw}`);
+                const rawValue = isCompoundExplode && exploded
+                  ? `<span class="die-compound-val">${rawText}</span>`
+                  : rawText;
+                const gameText = stripExplodeMarkers(d.resultDisplay || `${d.result}`);
                 return `<span class="die-cell ${droppedClass}" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${rawText})">` +
-                gameSpan(gameText, d.indicator, maxGameWidth, criticalClass) +
-                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawText}</span>${modStr}</span>` +
+                gameSpan(gameText, d.indicator, maxGameWidth, criticalClass, chipGlowClass) +
+                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${modStr}</span>` +
                 `</span>`
               }).join('');
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
@@ -1608,9 +1656,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                       ? 'die-critical-failure'
                       : '';
                   const droppedClass = d.isDropped ? 'die-dropped' : '';
-                  const display = d.resultDisplay || `${d.displayValue}`;
-                  return `<span class="roll-chunk ${droppedClass}">` +
-                    `<span class="roll-val ${criticalClass}" style="min-width:${String(r.sides).length}ch">${display}</span>` +
+                  const exploded = isExploded(d);
+                  const isCompoundExplode = d.compound === true;
+                  const glowClass = exploded
+                    ? (isCompoundExplode ? 'die-explode-compound' : 'die-explode-standard')
+                    : '';
+                  const chipWidth = isCompoundExplode
+                    ? String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length
+                    : String(r.sides).length;
+                  const display = stripExplodeMarkers(d.resultDisplay || `${d.displayValue}`);
+                  return `<span class="roll-chunk ${droppedClass} ${glowClass}">` +
+                    `<span class="roll-val ${criticalClass}" style="min-width:${chipWidth}ch">${display}</span>` +
                     `</span>`;
                 }).join('')
                 : rollValSpans(r.rolls, r.sides);
