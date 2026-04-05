@@ -1163,7 +1163,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       );
 
       const rollFn = typeof nextRollFn === 'function' ? nextRollFn : (s) => DiceNotation._rollDie(s);
-      const rollDetails = Array.from(rawRolls).map(raw => ({
+      let rollDetails = Array.from(rawRolls).map(raw => ({
         raw,
         chain: [raw],
         displayValue: raw,
@@ -1177,10 +1177,52 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       }));
 
       this._applyExplosions(rollDetails, sides, explodeMode, explodeThreshold, rollFn);
+      if (explodeMode === 'standard') {
+        const expanded = [];
+        rollDetails.forEach(d => {
+          if (!d.chain || d.chain.length <= 1) {
+            expanded.push({
+              raw: d.raw,
+              chain: [d.raw],
+              displayValue: d.raw,
+              rawDisplay: `${d.raw}`,
+              resultDisplay: `${d.raw}`,
+              kept: d.kept,
+              isDropped: d.isDropped,
+              compound: false,
+              isCriticalSuccess: d.raw === sides,
+              isCriticalFailure: d.raw === 1
+            });
+            return;
+          }
+
+          d.chain.forEach(v => {
+            expanded.push({
+              raw: v,
+              chain: d.chain.slice(),
+              displayValue: v,
+              rawDisplay: `${v}`,
+              resultDisplay: `${v}`,
+              kept: true,
+              isDropped: false,
+              compound: false,
+              isCriticalSuccess: v === sides,
+              isCriticalFailure: v === 1
+            });
+          });
+        });
+        rollDetails = expanded;
+      }
+
       this._applyFilter(rollDetails, filterAction, filterDirection, filterCount);
       rollDetails.forEach(d => {
-        d.rawDisplay = this._formatChain(d);
-        d.resultDisplay = d.compound && d.chain.length > 1 ? `${d.displayValue}!!` : `${d.displayValue}`;
+        if (explodeMode === 'compound') {
+          d.rawDisplay = this._formatChain(d);
+          d.resultDisplay = d.chain.length > 1 ? `${d.displayValue}!!` : `${d.displayValue}`;
+        } else {
+          d.rawDisplay = `${d.raw}`;
+          d.resultDisplay = `${d.displayValue}`;
+        }
       });
 
       const keptDetails = rollDetails.filter(d => d.kept);
@@ -2423,29 +2465,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "computeResult - standard explosion creates chain",
+            name: "computeResult - standard explosion adds separate bonus die entries",
             test: () => {
               const result = DiceNotation.computeResult([6, 2], {
                 count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
                 explodeMode: 'standard', explodeThreshold: 6
               }, () => 4);
               return result.total === 12 &&
-                result.rollDetails.length === 2 &&
+                result.rollDetails.length === 3 &&
                 result.rollDetails[0].chain.length === 2 &&
                 result.rollDetails[0].chain[0] === 6 &&
                 result.rollDetails[0].chain[1] === 4 &&
-                result.rollDetails[0].displayValue === 10 &&
-                result.rollDetails[1].displayValue === 2;
+                result.rollDetails[0].displayValue === 6 &&
+                result.rollDetails[1].displayValue === 4 &&
+                result.rollDetails[2].displayValue === 2 &&
+                result.min === 3 &&
+                result.max === 18;
             }
           },
           {
-            name: "computeResult - compounding explosion compounds die value",
+            name: "computeResult - compounding explosion keeps a single compounded die entry",
             test: () => {
               const result = DiceNotation.computeResult([6, 2], {
                 count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
                 explodeMode: 'compound', explodeThreshold: 6
               }, () => 4);
               return result.total === 12 &&
+                result.rollDetails.length === 2 &&
                 result.rollDetails[0].chain.length === 2 &&
                 result.rollDetails[0].compound === true &&
                 result.rollDetails[0].displayValue === 10 &&
@@ -2460,8 +2506,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 explodeMode: 'standard', explodeThreshold: 8
               }, () => 5);
               return result.total === 20 &&
+                result.rollDetails.length === 3 &&
                 result.rollDetails[0].chain.length === 2 &&
-                result.rollDetails[1].chain.length === 1;
+                result.rollDetails[1].displayValue === 5 &&
+                result.rollDetails[2].chain.length === 1;
             }
           },
           {
@@ -2528,9 +2576,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 explodeMode: 'standard', explodeThreshold: 6,
                 filterAction: 'keep', filterDirection: 'high', filterCount: 1
               }, () => 4);
-              return result.total === 11 &&
-                result.rollDetails[0].displayValue === 10 &&
-                result.rollDetails[1].kept === false;
+              return result.total === 7 &&
+                result.rollDetails.length === 3 &&
+                result.rollDetails[0].displayValue === 6 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].displayValue === 4 &&
+                result.rollDetails[1].kept === false &&
+                result.rollDetails[2].displayValue === 5 &&
+                result.rollDetails[2].kept === false;
             }
           },
           {
