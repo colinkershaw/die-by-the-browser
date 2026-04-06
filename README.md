@@ -22,7 +22,7 @@ A free (in all senses), lightweight, zero-dependency, single-file web utility de
 
 * **Namespace Architecture**: Organized as a modular `DiceApp` object to ensure clean separation of concerns between state management, UI rendering, and parsing logic.
 * **State-to-URL Sync**: A bidirectional synchronization logic that ensures the UI, the internal state, and the browser's navigation history stay aligned.
-* **Regex-Based Parser**: A robust parser handles standard RPG notation while strictly validating inputs to prevent broken rolls.
+* **AST-Based Parser Pipeline**: The parser tokenizes into an abstract syntax tree for robust validation and evaluation of both standard and advanced RPG notation.
 * **Dual-Input Sync**: Sophisticated event handling maintains cursor position and string integrity whether using a physical keyboard or the custom virtual keypad.
 
 ## 📜 License: AGPLv3 (The "Pay It Forward" Shield)

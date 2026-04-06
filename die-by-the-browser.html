@@ -57,8 +57,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         :root {
             --placeholder-text: "e.g., 3d6 4d12";
             --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
-            --clamp-floor: #7FD3FF; /* cyan */
-            --clamp-ceil:  #FFD166; /* amber */
+            --clamp-floor: #FFFFFF;
+            --clamp-ceil:  #FFD166;
+
+            --glow-core:      42, 227, 243;
+            --glow-mid:        0, 180, 255;
+
+            --glow2-core:     220, 139, 249;
+            --glow2-mid:      213, 142, 249;
+
+            --inner-spread:   6px;
+            --inner-opacity:  0.50;
+            --outer-spread:   10px;
+            --outer-opacity:  0.80;
+            --border-opacity: 0.70;
         }
 
         body {
@@ -585,6 +597,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             text-decoration-color: var(--clamp-ceil);
         }
 
+        .die-explode-standard {
+            border-color: rgba(var(--glow-core), var(--border-opacity)) !important;
+            box-shadow:
+                0 0 var(--inner-spread) rgba(var(--glow-core), var(--inner-opacity)),
+                0 0 var(--outer-spread) rgba(var(--glow-mid), var(--outer-opacity));
+        }
+
+        .die-explode-compound {
+            border-color: rgba(var(--glow2-core), var(--border-opacity)) !important;
+            box-shadow:
+                0 0 var(--inner-spread) rgba(var(--glow2-core), var(--inner-opacity)),
+                0 0 var(--outer-spread) rgba(var(--glow2-mid), var(--outer-opacity));
+        }
+
+        .die-compound-val {
+            font-style: italic;
+        }
+
         /* Each die-cell keeps game-result + raw-math together when wrapping */
         .die-cell {
             display: inline-flex;
@@ -602,6 +632,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #718096;
             font-size: 0.88em;
             margin-right: 4px;
+        }
+
+        .die-dropped {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .die-critical-success {
+            color: #4ade80;
+            font-weight: 700;
+        }
+
+        .die-critical-failure {
+            color: #f87171;
+            font-weight: 700;
         }
 
         .error {
@@ -764,93 +809,199 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
    * Symmetry Rule: the limit sign must match the modifier sign.
    */
   const DiceNotation = {
+    MAX_EXPLOSION_ITERATIONS: 20,
+    MIN_EXPLOSION_THRESHOLD: 2,
+
     /**
      * Parse dice notation string into structured collection data.
      * @param {string} input - Notation like "3d6 4d12" or "2 3d4-2-0"
      * @returns {Object} {collections: Array|null, error: string|null}
      */
     parse(input) {
-      if (!input || typeof input !== 'string') return {collections: null, error: 'INVALID_FORMAT'};
+      const ast = this._parseToAST(input);
+      if (ast.error) return {collections: null, error: ast.error};
+      return {collections: this._astToCollections(ast.root), error: null};
+    },
 
+    _parseToAST(input) {
+      if (!input || typeof input !== 'string') return {root: null, error: 'INVALID_FORMAT'};
       const trimmed = input.trim();
-      if (!trimmed) return {collections: null, error: 'INVALID_FORMAT'};
+      if (!trimmed) return {root: null, error: 'INVALID_FORMAT'};
 
       const tokens = trimmed.split(/\s+/);
-      const collections = [];
+      const root = {type: 'Expression', groups: []};
       let i = 0;
       let totalCount = 0;
-
-      // Token patterns
       const pureIntRe = /^\d+$/;
-      const diceRe = /^(\d+)d(\d+)(([+-])(\d+)(([+-])(\d+))?)?$/i;
       const aggModRe = /^([+-])(\d+)(([+-])(\d+))?$/;
 
       while (i < tokens.length) {
-        // Check for optional batch count (pure integer, no 'd')
         let batchCount = 1;
         if (pureIntRe.test(tokens[i])) {
           batchCount = parseInt(tokens[i], 10);
           i++;
-          if (batchCount <= 0) return {collections: null, error: 'INVALID_FORMAT'};
-          if (i >= tokens.length) return {collections: null, error: 'INVALID_FORMAT'};
+          if (batchCount <= 0 || i >= tokens.length) return {root: null, error: 'INVALID_FORMAT'};
         }
 
-        // Parse dice token (may include attached distributed modifier+limit)
-        const diceMatch = tokens[i].match(diceRe);
-        if (!diceMatch) return {collections: null, error: 'INVALID_FORMAT'};
+        const parsedDice = this._parseDiceToken(tokens[i]);
+        if (parsedDice.error) return {root: null, error: parsedDice.error};
+        const group = parsedDice.group;
 
-        const count = parseInt(diceMatch[1], 10);
-        const sides = parseInt(diceMatch[2], 10);
+        if (group.count <= 0 || group.sides <= 0) return {root: null, error: 'INVALID_FORMAT'};
+        if (group.count > DiceApp.MAX_DICE_COUNT) return {root: null, error: 'TOO_MANY_DICE'};
+        if (group.sides > DiceApp.MAX_DIE_SIDES) return {root: null, error: 'TOO_MANY_SIDES'};
 
-        if (count <= 0 || sides <= 0) return {collections: null, error: 'INVALID_FORMAT'};
-        if (count > DiceApp.MAX_DICE_COUNT) return {collections: null, error: 'TOO_MANY_DICE'};
-        if (sides > DiceApp.MAX_DIE_SIDES) return {collections: null, error: 'TOO_MANY_SIDES'};
+        totalCount += group.count * batchCount;
+        if (totalCount > DiceApp.MAX_DICE_COUNT) return {root: null, error: 'TOO_MANY_DICE'};
 
-        totalCount += count * batchCount;
-        if (totalCount > DiceApp.MAX_DICE_COUNT) return {collections: null, error: 'TOO_MANY_DICE'};
-
-        let modifier = 0;
-        let limit = null;
-        let limitSign = null;
-        let modifierMode = 'none';
-
-        if (diceMatch[3]) {
-          // Distributed modifier attached directly to dice token (no space)
-          const modSign = diceMatch[4];
-          modifier = parseInt(modSign + diceMatch[5], 10);
-          modifierMode = 'distributed';
-          if (Math.abs(modifier) > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
-          if (diceMatch[6]) {
-            const lim = DiceNotation._parseLimit(modSign, diceMatch[7], diceMatch[8]);
-            if (lim.error) return {collections: null, error: lim.error};
-            ({limit, limitSign} = lim);
-            if (limit > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
-          }
+        if (group.modifierMode !== 'none' && Math.abs(group.modifier) > DiceApp.MAX_MODIFIER) {
+          return {root: null, error: 'MODIFIER_TOO_LARGE'};
         }
+        if (group.limit !== null && group.limit > DiceApp.MAX_MODIFIER) {
+          return {root: null, error: 'MODIFIER_TOO_LARGE'};
+        }
+
         i++;
 
-        // Check for space-separated aggregated modifier (only if no distributed modifier)
-        if (i < tokens.length && modifierMode === 'none') {
+        // Parse optional space-separated aggregated modifier token if no distributed modifier exists.
+        if (i < tokens.length && group.modifierMode === 'none') {
           const aggMatch = tokens[i].match(aggModRe);
           if (aggMatch) {
             const modSign = aggMatch[1];
-            modifier = parseInt(modSign + aggMatch[2], 10);
-            modifierMode = 'aggregated';
-            if (Math.abs(modifier) > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
+            group.modifier = parseInt(modSign + aggMatch[2], 10);
+            group.modifierMode = 'aggregated';
+            if (Math.abs(group.modifier) > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
             if (aggMatch[3]) {
-              const lim = DiceNotation._parseLimit(modSign, aggMatch[4], aggMatch[5]);
-              if (lim.error) return {collections: null, error: lim.error};
-              ({limit, limitSign} = lim);
-              if (limit > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
+              const lim = this._parseLimit(modSign, aggMatch[4], aggMatch[5]);
+              if (lim.error) return {root: null, error: lim.error};
+              group.limit = lim.limit;
+              group.limitSign = lim.limitSign;
+              if (group.limit > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
             }
             i++;
           }
         }
 
-        collections.push({batchCount, count, sides, modifier, limit, limitSign, modifierMode});
+        root.groups.push({
+          type: 'DiceGroup',
+          batchCount,
+          ...group
+        });
       }
 
-      return {collections: collections.length > 0 ? collections : null, error: null};
+      return {root, error: null};
+    },
+
+    _astToCollections(root) {
+      if (!root || !Array.isArray(root.groups) || root.groups.length === 0) return null;
+      return root.groups.map(g => ({
+        batchCount: g.batchCount,
+        count: g.count,
+        sides: g.sides,
+        modifier: g.modifier,
+        limit: g.limit,
+        limitSign: g.limitSign,
+        modifierMode: g.modifierMode,
+        explodeMode: g.explodeMode,
+        explodeThreshold: g.explodeThreshold,
+        filterAction: g.filterAction,
+        filterDirection: g.filterDirection,
+        filterCount: g.filterCount
+      }));
+    },
+
+    _parseDiceToken(token) {
+      const baseMatch = token.match(/^(\d+)d(\d+)/i);
+      if (!baseMatch) return {group: null, error: 'INVALID_FORMAT'};
+
+      const count = parseInt(baseMatch[1], 10);
+      const sides = parseInt(baseMatch[2], 10);
+      let idx = baseMatch[0].length;
+
+      const group = {
+        count,
+        sides,
+        modifier: 0,
+        limit: null,
+        limitSign: null,
+        modifierMode: 'none',
+        explodeMode: 'none',
+        explodeThreshold: null,
+        filterAction: null,
+        filterDirection: null,
+        filterCount: null
+      };
+
+      // Explosion: !, !!, !Y
+      if (idx < token.length && token[idx] === '!') {
+        idx++;
+        if (idx < token.length && token[idx] === '!') {
+          group.explodeMode = 'compound';
+          group.explodeThreshold = sides;
+          idx++;
+        } else {
+          group.explodeMode = 'standard';
+          let thresholdDigits = '';
+          while (idx < token.length && /[0-9]/.test(token[idx])) {
+            thresholdDigits += token[idx];
+            idx++;
+          }
+          group.explodeThreshold = thresholdDigits ? parseInt(thresholdDigits, 10) : sides;
+        }
+        if (group.explodeThreshold < this.MIN_EXPLOSION_THRESHOLD || group.explodeThreshold > sides) {
+          return {group: null, error: 'INVALID_EXPLODE_THRESHOLD'};
+        }
+      }
+
+      // Filter: ++Y, +-Y, -+Y, --Y
+      if (idx + 2 <= token.length && (token[idx] === '+' || token[idx] === '-') && (token[idx + 1] === '+' || token[idx + 1] === '-')) {
+        const actionOp = token[idx];
+        const directionOp = token[idx + 1];
+        idx += 2;
+
+        let filterDigits = '';
+        while (idx < token.length && /[0-9]/.test(token[idx])) {
+          filterDigits += token[idx];
+          idx++;
+        }
+        if (!filterDigits) return {group: null, error: 'INVALID_FORMAT'};
+        group.filterCount = parseInt(filterDigits, 10);
+        if (group.filterCount <= 0) return {group: null, error: 'INVALID_FORMAT'};
+        group.filterAction = actionOp === '+' ? 'keep' : 'drop';
+        group.filterDirection = directionOp === '+' ? 'high' : 'low';
+      }
+
+      // Distributed modifier / limit: (+|-)N((+|-)N)?
+      if (idx < token.length && (token[idx] === '+' || token[idx] === '-') && idx + 1 < token.length && /[0-9]/.test(token[idx + 1])) {
+        const modSign = token[idx];
+        idx++;
+        let modDigits = '';
+        while (idx < token.length && /[0-9]/.test(token[idx])) {
+          modDigits += token[idx];
+          idx++;
+        }
+        if (!modDigits) return {group: null, error: 'INVALID_FORMAT'};
+        group.modifier = parseInt(modSign + modDigits, 10);
+        group.modifierMode = 'distributed';
+
+        if (idx < token.length && (token[idx] === '+' || token[idx] === '-')) {
+          const limSign = token[idx];
+          idx++;
+          let limDigits = '';
+          while (idx < token.length && /[0-9]/.test(token[idx])) {
+            limDigits += token[idx];
+            idx++;
+          }
+          if (!limDigits) return {group: null, error: 'INVALID_FORMAT'};
+          const lim = this._parseLimit(modSign, limSign, limDigits);
+          if (lim.error) return {group: null, error: lim.error};
+          group.limit = lim.limit;
+          group.limitSign = lim.limitSign;
+        }
+      }
+
+      if (idx !== token.length) return {group: null, error: 'INVALID_FORMAT'};
+      return {group, error: null};
     },
 
     /**
@@ -875,6 +1026,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       return {limit: parseInt(limitVal, 10), limitSign: limSign};
     },
 
+    _rollDie(sides) {
+      return Math.floor(Math.random() * sides) + 1;
+    },
+
     /**
      * Roll dice and return raw results
      * @param {number} count - Number of dice
@@ -884,9 +1039,61 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     roll(count, sides) {
       const rolls = new Uint32Array(count);
       for (let i = 0; i < count; i++) {
-        rolls[i] = Math.floor(Math.random() * sides) + 1;
+        rolls[i] = this._rollDie(sides);
       }
       return rolls;
+    },
+
+    _applyExplosions(rollDetails, sides, explodeMode, explodeThreshold, rollFn) {
+      if (!explodeMode || explodeMode === 'none') return;
+      const threshold = explodeThreshold || sides;
+      for (const detail of rollDetails) {
+        let last = detail.chain[detail.chain.length - 1];
+        let loops = 0;
+        while (last >= threshold && loops < this.MAX_EXPLOSION_ITERATIONS) {
+          const next = rollFn(sides);
+          detail.chain.push(next);
+          last = next;
+          loops++;
+        }
+        detail.compound = explodeMode === 'compound';
+        detail.displayValue = detail.chain.reduce((s, v) => s + v, 0);
+      }
+    },
+
+    _applyFilter(rollDetails, filterAction, filterDirection, filterCount) {
+      if (!filterAction || !filterDirection || !filterCount) return;
+      if (filterCount >= rollDetails.length) return; // safety rule: preserve default all-kept state
+
+      const ranked = rollDetails
+        .map((detail, index) => ({detail, index}))
+        .sort((a, b) => {
+          if (a.detail.displayValue !== b.detail.displayValue) {
+            return filterDirection === 'high'
+              ? b.detail.displayValue - a.detail.displayValue
+              : a.detail.displayValue - b.detail.displayValue;
+          }
+          return a.index - b.index;
+        });
+
+      const marked = new Set();
+      if (filterAction === 'keep') {
+        for (let i = 0; i < filterCount; i++) {
+          marked.add(ranked[i].index);
+        }
+        rollDetails.forEach((d, i) => {
+          d.kept = marked.has(i);
+          d.isDropped = !d.kept;
+        });
+      } else {
+        for (let i = 0; i < filterCount; i++) {
+          marked.add(ranked[i].index);
+        }
+        rollDetails.forEach((d, i) => {
+          d.kept = !marked.has(i);
+          d.isDropped = !d.kept;
+        });
+      }
     },
 
     /**
@@ -897,10 +1104,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * @param {number|null} limit
      * @param {string|null} limitSign - '+' or '-'
      * @param {string} modifierMode - 'none'|'distributed'|'aggregated'
+     * @param {Object} advanced - {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
      * @returns {string}
      */
-    buildFormula(count, sides, modifier, limit, limitSign, modifierMode) {
+    buildFormula(count, sides, modifier, limit, limitSign, modifierMode, advanced = {}) {
       let s = `${count}d${sides}`;
+      const {
+        explodeMode = 'none',
+        explodeThreshold = null,
+        filterAction = null,
+        filterDirection = null,
+        filterCount = null
+      } = advanced;
+
+      if (explodeMode === 'compound') {
+        s += '!!';
+      } else if (explodeMode === 'standard') {
+        s += (explodeThreshold !== null && explodeThreshold !== sides) ? `!${explodeThreshold}` : '!';
+      }
+
+      if (filterAction && filterDirection && filterCount) {
+        const actionOp = filterAction === 'keep' ? '+' : '-';
+        const directionOp = filterDirection === 'high' ? '+' : '-';
+        s += `${actionOp}${directionOp}${filterCount}`;
+      }
+
       if (modifierMode !== 'none') {
         const modStr = modifier >= 0 ? `+${modifier}` : `${modifier}`;
         s += modifierMode === 'aggregated' ? ` ${modStr}` : modStr;
@@ -911,82 +1139,173 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       return s;
     },
 
+    _formatChain(detail) {
+      if (!detail.chain || detail.chain.length <= 1) return `${detail.raw}`;
+      if (detail.compound) return `${detail.displayValue}!!`;
+      return `[${detail.chain.map((v, idx) => (idx === detail.chain.length - 1 ? `${v}` : `${v}!`)).join('+')}]`;
+    },
+
     /**
-     * Compute roll result with modifier/limit applied.
-     * @param {Uint32Array} rawRolls - Raw die values
-     * @param {Object} opts - {count, sides, modifier, limit, limitSign, modifierMode}
-     * @returns {Object} Result object
+     * Initialize roll details.
+     * @private
      */
-    computeResult(rawRolls, {count, sides, modifier, limit, limitSign, modifierMode}) {
-      const formula = DiceNotation.buildFormula(count, sides, modifier, limit, limitSign, modifierMode);
+    _initializeRollDetails(rawRolls, sides) {
+      return Array.from(rawRolls).map(raw => ({
+        raw,
+        chain: [raw],
+        displayValue: raw,
+        rawDisplay: `${raw}`,
+        resultDisplay: `${raw}`,
+        kept: true,
+        isDropped: false,
+        compound: false,
+        isCriticalSuccess: raw === sides,
+        isCriticalFailure: raw === 1
+      }));
+    },
 
-      if (modifierMode === 'none') {
-        const rolls = Array.from(rawRolls);
-        const total = rolls.reduce((s, v) => s + v, 0);
-        return {formula, mode: 'none', rolls, total, min: count, max: count * sides, sides};
-      }
-
-      if (modifierMode === 'distributed') {
-        const dieResults = Array.from(rawRolls).map(raw => {
-          const modified = raw + modifier;
-          let result = modified;
-          let indicator = '';
-          if (limit !== null) {
-            if (limitSign === '-' && modified < limit) {
-              result = limit;
-              indicator = '*'; // raised to floor
-            } else if (limitSign === '+' && modified > limit) {
-              result = limit;
-              indicator = '^'; // lowered to ceiling
-            }
-          }
-          return {raw, result, indicator};
-        });
-        const total = dieResults.reduce((s, d) => s + d.result, 0);
-
-        // Range Raw: raw dice-only span. Range Mod: after modifier. Range Limit: after optional clamp.
-        const rangeRaw = {min: count, max: count * sides};
-        const perDieMin = 1 + modifier;
-        const perDieMax = sides + modifier;
-        const rangeMod = {min: count * perDieMin, max: count * perDieMax};
-        let limitMin = perDieMin;
-        let limitMax = perDieMax;
-        if (limit !== null) {
-          if (limitSign === '-') {
-            limitMin = Math.max(perDieMin, limit);
-            limitMax = Math.max(perDieMax, limit);
-          } else {
-            limitMin = Math.min(perDieMin, limit);
-            limitMax = Math.min(perDieMax, limit);
-          }
+    /**
+     * Expand standard explosions into separate roll details.
+     * @private
+     */
+    _expandStandardExplosions(rollDetails, sides) {
+      const expanded = [];
+      rollDetails.forEach(d => {
+        if (!d.chain || d.chain.length <= 1) {
+          expanded.push({
+            raw: d.raw,
+            chain: [d.raw],
+            displayValue: d.raw,
+            rawDisplay: `${d.raw}`,
+            resultDisplay: `${d.raw}`,
+            kept: d.kept,
+            isDropped: d.isDropped,
+            compound: false,
+            isCriticalSuccess: d.raw === sides,
+            isCriticalFailure: d.raw === 1
+          });
+          return;
         }
-        let rangeLimit = null;
-        if (limit !== null) {
-          rangeLimit = {min: count * limitMin, max: count * limitMax};
+
+        d.chain.forEach(v => {
+          expanded.push({
+            raw: v,
+            chain: d.chain.slice(),
+            displayValue: v,
+            rawDisplay: `${v}`,
+            resultDisplay: `${v}`,
+            kept: true,
+            isDropped: false,
+            compound: false,
+            isCriticalSuccess: v === sides,
+            isCriticalFailure: v === 1
+          });
+        });
+      });
+      return expanded;
+    },
+
+    /**
+     * Apply display formatting to roll details.
+     * @private
+     */
+    _applyDisplayFormatting(rollDetails, explodeMode) {
+      rollDetails.forEach(d => {
+        if (explodeMode === 'compound') {
+          d.rawDisplay = this._formatChain(d);
+          d.resultDisplay = d.chain.length > 1 ? `${d.displayValue}!!` : `${d.displayValue}`;
+        } else {
+          d.rawDisplay = `${d.raw}`;
+          d.resultDisplay = `${d.displayValue}`;
+        }
+      });
+    },
+
+    /**
+     * Compute result for distributed modifier mode.
+     * @private
+     */
+    _computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
+      const effectiveCount = keptDetails.length;
+      const dieResults = rollDetails.map(d => {
+        const modified = d.displayValue + modifier;
+        let result = modified;
+        let indicator = '';
+        if (d.kept && limit !== null) {
+          if (limitSign === '-' && modified < limit) {
+            result = limit;
+            indicator = '*';
+          } else if (limitSign === '+' && modified > limit) {
+            result = limit;
+            indicator = '^';
+          }
         }
         return {
-          formula, mode: 'distributed', dieResults, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
-          limit, limitSign, hasClamp: limit !== null
+          raw: d.raw,
+          rawDisplay: d.rawDisplay,
+          result: d.kept ? result : d.displayValue,
+          resultDisplay: d.kept
+            ? (d.compound && d.chain.length > 1 ? `${result}!!` : `${result}`)
+            : d.resultDisplay,
+          indicator,
+          kept: d.kept,
+          isDropped: d.isDropped,
+          chain: d.chain.slice(),
+          compound: d.compound,
+          isCriticalSuccess: d.isCriticalSuccess,
+          isCriticalFailure: d.isCriticalFailure
         };
-      }
+      });
 
-      // aggregated mode
-      const rolls = Array.from(rawRolls);
-      const rawSum = rolls.reduce((s, v) => s + v, 0);
+      const total = dieResults.reduce((s, d) => s + (d.kept ? d.result : 0), 0);
+
+      const rangeRaw = {min: effectiveCount, max: effectiveCount * sides};
+      const perDieMin = 1 + modifier;
+      const perDieMax = sides + modifier;
+      const rangeMod = {min: effectiveCount * perDieMin, max: effectiveCount * perDieMax};
+      let limitMin = perDieMin;
+      let limitMax = perDieMax;
+      if (limit !== null) {
+        if (limitSign === '-') {
+          limitMin = Math.max(perDieMin, limit);
+          limitMax = Math.max(perDieMax, limit);
+        } else {
+          limitMin = Math.min(perDieMin, limit);
+          limitMax = Math.min(perDieMax, limit);
+        }
+      }
+      const rangeLimit = limit !== null
+        ? {min: effectiveCount * limitMin, max: effectiveCount * limitMax}
+        : null;
+
+      return {
+        formula, mode: 'distributed', dieResults, rollDetails, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
+        limit, limitSign, hasClamp: limit !== null
+      };
+    },
+
+    /**
+     * Compute result for aggregated modifier mode.
+     * @private
+     */
+    _computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
+      const effectiveCount = keptDetails.length;
+      const rolls = rollDetails.map(d => d.raw);
+      const rawSum = keptDetails.reduce((s, d) => s + d.displayValue, 0);
       const modifiedSum = rawSum + modifier;
       let total = modifiedSum;
       let indicator = '';
       if (limit !== null) {
         if (limitSign === '-' && modifiedSum < limit) {
           total = limit;
-          indicator = '*'; // raised to floor
+          indicator = '*';
         } else if (limitSign === '+' && modifiedSum > limit) {
           total = limit;
-          indicator = '^'; // lowered to ceiling
+          indicator = '^';
         }
       }
-      const rawMin = count;
-      const rawMax = count * sides;
+      const rawMin = effectiveCount;
+      const rawMax = effectiveCount * sides;
       const rangeRaw = {min: rawMin, max: rawMax};
       const modifiedMin = rawMin + modifier;
       const modifiedMax = rawMax + modifier;
@@ -1002,14 +1321,57 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           limitMax = Math.min(modifiedMax, limit);
         }
       }
-      let rangeLimit = null;
-      if (limit !== null) {
-        rangeLimit = {min: limitMin, max: limitMax};
-      }
+      const rangeLimit = limit !== null ? {min: limitMin, max: limitMax} : null;
       return {
-        formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, sides,
+        formula, mode: 'aggregated', rolls, rollDetails, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, sides,
         limit, limitSign, hasClamp: limit !== null
       };
+    },
+
+    /**
+     * Compute roll result with modifier/limit applied.
+     * @param {Uint32Array|number[]} rawRolls - Raw die values
+     * @param {Object} opts - collection options
+     * @param {Function|null} nextRollFn - Optional deterministic roller for explosions
+     * @returns {Object} Result object
+     */
+    computeResult(rawRolls, {
+      count, sides, modifier, limit, limitSign, modifierMode,
+      explodeMode = 'none', explodeThreshold = null,
+      filterAction = null, filterDirection = null, filterCount = null
+    }, nextRollFn = null) {
+      const formula = DiceNotation.buildFormula(
+        count, sides, modifier, limit, limitSign, modifierMode,
+        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
+      );
+
+      const rollFn = typeof nextRollFn === 'function' ? nextRollFn : (s) => DiceNotation._rollDie(s);
+      let rollDetails = this._initializeRollDetails(rawRolls, sides);
+
+      this._applyExplosions(rollDetails, sides, explodeMode, explodeThreshold, rollFn);
+      if (explodeMode === 'standard') {
+        rollDetails = this._expandStandardExplosions(rollDetails, sides);
+      }
+
+      this._applyFilter(rollDetails, filterAction, filterDirection, filterCount);
+      this._applyDisplayFormatting(rollDetails, explodeMode);
+
+      const keptDetails = rollDetails.filter(d => d.kept);
+      const effectiveCount = keptDetails.length;
+
+      if (modifierMode === 'none') {
+        const rolls = rollDetails.map(d => d.raw);
+        const total = keptDetails.reduce((s, d) => s + d.displayValue, 0);
+        const min = effectiveCount;
+        const max = effectiveCount * sides;
+        return {formula, mode: 'none', rolls, rollDetails, total, min, max, sides};
+      }
+
+      if (modifierMode === 'distributed') {
+        return this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
+      }
+
+      return this._computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
     },
 
     /**
@@ -1023,7 +1385,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
         'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`,
         'INVALID_OPERATOR_FOR_LIMIT': 'Invalid operator for limit. Limit sign must match modifier sign (e.g., 3d6-5-1 or 3d6+5+10).',
-        'MODIFIER_TOO_LARGE': `Modifier or limit too large! Maximum allowed is ${DiceApp.MAX_MODIFIER.toLocaleString()}.`
+        'MODIFIER_TOO_LARGE': `Modifier or limit too large! Maximum allowed is ${DiceApp.MAX_MODIFIER.toLocaleString()}.`,
+        'INVALID_EXPLODE_THRESHOLD': 'Invalid explosion threshold. Use !Y where Y is at least 2 and no greater than die sides.'
       };
       return messages[errorCode] || 'Unknown error';
     }
@@ -1228,6 +1591,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       renderResults() {
         const {nodes, state} = DiceApp;
+        const stripExplodeMarkers = (value) => `${value}`.replace(/!/g, '');
+        const isExploded = (die) => Array.isArray(die?.chain) && die.chain.length > 1;
 
         /**
          * Build a range string. Shows calculation-vs-absolute ranges when available.
@@ -1257,14 +1622,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
          * @param {number} sides
          * @returns {string}
          */
-                    const rollValSpans = (rolls, sides) => {
-              const w = String(sides).length;
-              return rolls.map((v) =>
-                `<span class="roll-chunk">` +
-                `<span class="roll-val" style="min-width:${w}ch">${v}</span>` +
-                `</span>`
-              ).join('');
-            };
+        const rollValSpans = (rolls, sides) => {
+          const w = String(sides).length;
+          return rolls.map((v) =>
+            `<span class="roll-chunk">` +
+            `<span class="roll-val" style="min-width:${w}ch">${v}</span>` +
+            `</span>`
+          ).join('');
+        };
 
         let newHTML = '';
         if (state.isRolling) {
@@ -1280,17 +1645,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
              * @param {number} val - Displayed numeric value
              * @param {string} indicator - '' | '*' | '^'
              * @param {number} minWidth - ch width for alignment
+             * @param extraClassName
+             * @param chipClassName
              * @returns {string}
              */
-            const gameSpan = (val, indicator, minWidth) => {
-              const inner = `<span class="die-game-val" style="min-width:${minWidth}ch">${val}</span>`;
+            const gameSpan = (val, indicator, minWidth, extraClassName = '', chipClassName = '') => {
+              const extraClass = extraClassName ? ` ${extraClassName}` : '';
+              const cleanVal = stripExplodeMarkers(val);
+              const inner = `<span class="die-game-val${extraClass}" style="min-width:${minWidth}ch">${cleanVal}</span>`;
+              const classes = ['die-game'];
+              if (indicator === '*') classes.push('die-clamp-floor');
+              if (indicator === '^') classes.push('die-clamp-ceiling');
+              if (chipClassName) classes.push(chipClassName);
               if (indicator === '*') {
-                return `<span class="die-game die-clamp-floor">${inner}</span>`;
+                return `<span class="${classes.join(' ')}">${inner}</span>`;
               }
               if (indicator === '^') {
-                return `<span class="die-game die-clamp-ceiling">${inner}</span>`;
+                return `<span class="${classes.join(' ')}">${inner}</span>`;
               }
-              return `<span class="die-game">${inner}</span>`;
+              return `<span class="${classes.join(' ')}">${inner}</span>`;
             };
 
             if (r.mode === 'distributed') {
@@ -1299,18 +1672,37 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // Theoretical max game-result width (digits only — indicator is now text-decoration).
               // A floor limit (-) is the true minimum displayed value (result ≥ limit by definition).
               // A ceiling limit (+) is the true maximum displayed value (result ≤ limit by definition).
-              const theorMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
-              const theorMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
-              const maxGameWidth = Math.max(String(theorMinGame).length, String(theorMaxGame).length);
-              // Theoretical max raw-value width (always 1..sides)
-              const maxRawWidth = String(r.sides).length;
+              const theoreticalMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
+              const theoreticalMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
+              const hasCompoundExplode = r.dieResults.some(d => d.compound);
+              const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
+              const maxGameWidth = hasCompoundExplode
+                ? compoundWidth
+                : Math.max(String(theoreticalMinGame).length, String(theoreticalMaxGame).length);
+              const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
 
-              const rollsDisplay = r.dieResults.map(d =>
-                `<span class="die-cell" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${d.raw})">` +
-                gameSpan(d.result, d.indicator, maxGameWidth) +
-                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}</span>` +
+              const rollsDisplay = r.dieResults.map(d => {
+                const criticalClass = d.isCriticalSuccess
+                  ? 'die-critical-success'
+                  : d.isCriticalFailure
+                    ? 'die-critical-failure'
+                    : '';
+                const droppedClass = d.isDropped ? 'die-dropped' : '';
+                const exploded = isExploded(d);
+                const isCompoundExplode = d.compound === true;
+                const chipGlowClass = exploded
+                  ? (isCompoundExplode ? 'die-explode-compound' : 'die-explode-standard')
+                  : '';
+                const rawText = stripExplodeMarkers(d.rawDisplay || `${d.raw}`);
+                const rawValue = isCompoundExplode && exploded
+                  ? `<span class="die-compound-val">${rawText}</span>`
+                  : rawText;
+                const gameText = stripExplodeMarkers(d.resultDisplay || `${d.result}`);
+                return `<span class="die-cell ${droppedClass}" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${rawText})">` +
+                gameSpan(gameText, d.indicator, maxGameWidth, criticalClass, chipGlowClass) +
+                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${modStr}</span>` +
                 `</span>`
-              ).join('');
+              }).join('');
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item">
@@ -1341,11 +1733,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       `;
             } else {
               // mode === 'none' (basic roll, no modifier)
+              const rollsDisplay = r.rollDetails
+                ? r.rollDetails.map(d => {
+                  const criticalClass = d.isCriticalSuccess
+                    ? 'die-critical-success'
+                    : d.isCriticalFailure
+                      ? 'die-critical-failure'
+                      : '';
+                  const droppedClass = d.isDropped ? 'die-dropped' : '';
+                  const exploded = isExploded(d);
+                  const isCompoundExplode = d.compound === true;
+                  const glowClass = exploded
+                    ? (isCompoundExplode ? 'die-explode-compound' : 'die-explode-standard')
+                    : '';
+                  const chipWidth = isCompoundExplode
+                    ? String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length
+                    : String(r.sides).length;
+                  const display = stripExplodeMarkers(d.resultDisplay || `${d.displayValue}`);
+                  return `<span class="roll-chunk ${droppedClass} ${glowClass}">` +
+                    `<span class="roll-val ${criticalClass}" style="min-width:${chipWidth}ch">${display}</span>` +
+                    `</span>`;
+                }).join('')
+                : rollValSpans(r.rolls, r.sides);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
+          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
@@ -1449,11 +1863,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.rollResults = [];
 
           for (const coll of parsed) {
-            const {batchCount, count, sides, modifier, limit, limitSign, modifierMode} = coll;
+            const {
+              batchCount, count, sides, modifier, limit, limitSign, modifierMode,
+              explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
+            } = coll;
             for (let b = 0; b < batchCount; b++) {
               const rawRolls = DiceNotation.roll(count, sides);
               const result = DiceNotation.computeResult(rawRolls, {
-                count, sides, modifier, limit, limitSign, modifierMode
+                count, sides, modifier, limit, limitSign, modifierMode,
+                explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
               });
               state.rollResults.push(result);
             }
@@ -2006,6 +2424,212 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Parse exploding notation - !",
+            test: () => {
+              const result = DiceNotation.parse("2d6!");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'standard' && c[0].explodeThreshold === 6;
+            }
+          },
+          {
+            name: "Parse exploding notation - !!",
+            test: () => {
+              const result = DiceNotation.parse("2d6!!");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'compound' && c[0].explodeThreshold === 6;
+            }
+          },
+          {
+            name: "Parse threshold exploding notation - !Y",
+            test: () => {
+              const result = DiceNotation.parse("2d10!8");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'standard' && c[0].explodeThreshold === 8;
+            }
+          },
+          {
+            name: "Reject invalid threshold exploding notation - below minimum",
+            test: () => {
+              const result = DiceNotation.parse("2d10!1");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
+            }
+          },
+          {
+            name: "Reject invalid threshold exploding notation - above sides",
+            test: () => {
+              const result = DiceNotation.parse("2d10!11");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
+            }
+          },
+          {
+            name: "Parse keep high filter - ++",
+            test: () => {
+              const result = DiceNotation.parse("2d20++1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'keep' && c[0].filterDirection === 'high' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse keep low filter - +-",
+            test: () => {
+              const result = DiceNotation.parse("2d20+-1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'keep' && c[0].filterDirection === 'low' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse drop high filter - -+",
+            test: () => {
+              const result = DiceNotation.parse("4d6-+1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'drop' && c[0].filterDirection === 'high' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse drop low filter - --",
+            test: () => {
+              const result = DiceNotation.parse("4d6--1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'drop' && c[0].filterDirection === 'low' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Reject filter count zero",
+            test: () => {
+              const result = DiceNotation.parse("4d6--0");
+              return result.collections === null && result.error === 'INVALID_FORMAT';
+            }
+          },
+          {
+            name: "computeResult - standard explosion adds separate bonus die entries",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 2], {
+                count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 6
+              }, () => 4);
+              return result.total === 12 &&
+                result.rollDetails.length === 3 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[0].chain[0] === 6 &&
+                result.rollDetails[0].chain[1] === 4 &&
+                result.rollDetails[0].displayValue === 6 &&
+                result.rollDetails[1].displayValue === 4 &&
+                result.rollDetails[2].displayValue === 2 &&
+                result.min === 3 &&
+                result.max === 18;
+            }
+          },
+          {
+            name: "computeResult - compounding explosion keeps a single compounded die entry",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 2], {
+                count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'compound', explodeThreshold: 6
+              }, () => 4);
+              return result.total === 12 &&
+                result.rollDetails.length === 2 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[0].compound === true &&
+                result.rollDetails[0].displayValue === 10 &&
+                result.rollDetails[1].displayValue === 2;
+            }
+          },
+          {
+            name: "computeResult - threshold explosion uses >= Y",
+            test: () => {
+              const result = DiceNotation.computeResult([8, 7], {
+                count: 2, sides: 10, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 8
+              }, () => 5);
+              return result.total === 20 &&
+                result.rollDetails.length === 3 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[1].displayValue === 5 &&
+                result.rollDetails[2].chain.length === 1;
+            }
+          },
+          {
+            name: "computeResult - explosion recursion cap",
+            test: () => {
+              const result = DiceNotation.computeResult([6], {
+                count: 1, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 6
+              }, () => 6);
+              return result.rollDetails[0].chain.length === 21 && result.total === 126;
+            }
+          },
+          {
+            name: "computeResult - keep high filters lowest dice",
+            test: () => {
+              const result = DiceNotation.computeResult([18, 4], {
+                count: 2, sides: 20, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'high', filterCount: 1
+              });
+              return result.total === 18 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].kept === false;
+            }
+          },
+          {
+            name: "computeResult - drop low filters lowest dice",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5, 2, 1], {
+                count: 4, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'drop', filterDirection: 'low', filterCount: 1
+              });
+              return result.total === 13 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].kept === true &&
+                result.rollDetails[2].kept === true &&
+                result.rollDetails[3].kept === false;
+            }
+          },
+          {
+            name: "computeResult - oversized filter defaults to keep all",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5, 2, 1], {
+                count: 4, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'high', filterCount: 4
+              });
+              return result.total === 14 && result.rollDetails.every(d => d.kept === true);
+            }
+          },
+          {
+            name: "computeResult - critical detection nat max and nat 1",
+            test: () => {
+              const result = DiceNotation.computeResult([20, 1], {
+                count: 2, sides: 20, modifier: 0, limit: null, limitSign: null, modifierMode: 'none'
+              });
+              return result.rollDetails[0].isCriticalSuccess === true &&
+                result.rollDetails[1].isCriticalFailure === true;
+            }
+          },
+          {
+            name: "computeResult - precedence explode then filter then modifier",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5], {
+                count: 2, sides: 6, modifier: 1, limit: null, limitSign: null, modifierMode: 'distributed',
+                explodeMode: 'standard', explodeThreshold: 6,
+                filterAction: 'keep', filterDirection: 'high', filterCount: 1
+              }, () => 4);
+              return result.total === 7 &&
+                result.rollDetails.length === 3 &&
+                result.rollDetails[0].displayValue === 6 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].displayValue === 4 &&
+                result.rollDetails[1].kept === false &&
+                result.rollDetails[2].displayValue === 5 &&
+                result.rollDetails[2].kept === false;
+            }
+          },
+          {
             name: "computeResult - distributed penalty with floor (indicator *)",
             test: () => {
               // 3d4-3-1: rolls [4, 1, 2], floor=1
@@ -2234,6 +2858,50 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.ui.renderResults();
               const html = DiceApp.nodes.results.innerHTML;
               return html.includes('(Mod)') && html.includes('(Abs)') && !html.includes('(Limit)');
+            }
+          },
+          {
+            name: "renderResults - dropped dice are strike-through",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d20++1',
+                mode: 'none',
+                rolls: [18, 4],
+                rollDetails: [
+                  {raw: 18, displayValue: 18, resultDisplay: '18', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 4, displayValue: 4, resultDisplay: '4', kept: false, isDropped: true, isCriticalSuccess: false, isCriticalFailure: false}
+                ],
+                total: 18,
+                min: 1,
+                max: 20,
+                sides: 20
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const html = DiceApp.nodes.results.innerHTML;
+              return html.includes('die-dropped');
+            }
+          },
+          {
+            name: "renderResults - critical nat max and nat 1 classes",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d20',
+                mode: 'none',
+                rolls: [20, 1],
+                rollDetails: [
+                  {raw: 20, displayValue: 20, resultDisplay: '20', kept: true, isDropped: false, isCriticalSuccess: true, isCriticalFailure: false},
+                  {raw: 1, displayValue: 1, resultDisplay: '1', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: true}
+                ],
+                total: 21,
+                min: 2,
+                max: 40,
+                sides: 20
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const html = DiceApp.nodes.results.innerHTML;
+              return html.includes('die-critical-success') && html.includes('die-critical-failure');
             }
           },
           {
