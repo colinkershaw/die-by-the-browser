@@ -53,7 +53,7 @@ jobs:
           PAGES_URL="https://colinkershaw.github.io/die-by-the-browser"
           echo "Waiting for GitHub Pages to deploy..."
           sleep 60
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PAGES_URL")
+          HTTP_STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "$PAGES_URL")
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::GitHub Pages validation failed: HTTP $HTTP_STATUS from $PAGES_URL"
             exit 1
