@@ -273,6 +273,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             min-height: 52px;
             white-space: pre-wrap;
             overflow-wrap: break-word;
+            box-shadow: 0 0 0 3px rgba(42, 227, 243, 0);
         }
 
         #diceInput:focus {
@@ -1519,7 +1520,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         try {
           const {mode, fitToWidth} = DiceApp.state;
           localStorage.setItem('diceAppPrefs', JSON.stringify({mode, fitToWidth}));
-        } catch (_) {
+        } catch (error) {
           // Ignore storage errors (private mode, disabled storage, etc.)
         }
       },
@@ -1537,7 +1538,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             mode: parsed?.mode,
             fitToWidth: parsed?.fitToWidth
           };
-        } catch (_) {
+        } catch (error) {
           return {};
         }
       },
@@ -1847,9 +1848,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       /**
        * Close menu
        */
-      closeMenu() {
+      closeMenu(restoreHamburgerFocus = false) {
         DiceApp.nodes.menu.classList.remove('active');
-        if (DiceApp.nodes.hamburger) {
+        if (restoreHamburgerFocus && DiceApp.nodes.hamburger) {
           DiceApp.nodes.hamburger.focus();
         }
       }
@@ -2170,7 +2171,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (!nodes.menu.contains(e.target) &&
           !nodes.hamburger.contains(e.target) &&
           nodes.menu.classList.contains('active')) {
-          DiceApp.ui.closeMenu();
+          DiceApp.ui.closeMenu(true);
         }
       }
     },

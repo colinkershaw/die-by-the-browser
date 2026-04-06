@@ -15,6 +15,13 @@ const APP_URL = `file://${resolve(testDir, '../die-by-the-browser.html')}`;
 const DESKTOP_VIEWPORT = {width: 1280, height: 720};
 const MOBILE_VIEWPORT = {width: 400, height: 900};
 
+async function setMockRandom(page, value) {
+  await page.addInitScript((v) => {
+    Math.random = () => v;
+  }, value);
+  await page.reload();
+}
+
 // Overriding Math.random to always return a predictable sequence
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -415,14 +422,14 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
   });
 
   test('should show critical success styling on nat max', async ({page}) => {
-    await page.evaluate(() => { Math.random = () => 0.999999; });
+    await setMockRandom(page, 0.999999);
     await page.fill('#diceInput', '1d20');
     await page.click('#rollBtn');
     await expect(page.locator('.roll-val.die-critical-success')).toHaveCount(1);
   });
 
   test('should show critical failure styling on nat 1', async ({page}) => {
-    await page.evaluate(() => { Math.random = () => 0; });
+    await setMockRandom(page, 0);
     await page.fill('#diceInput', '1d20');
     await page.click('#rollBtn');
     await expect(page.locator('.roll-val.die-critical-failure')).toHaveCount(1);
@@ -451,7 +458,7 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
   });
 
   test('should render distributed floor formatting with indicators', async ({page}) => {
-    await page.evaluate(() => { Math.random = () => 0; }); // all rolls become 1
+    await setMockRandom(page, 0); // all rolls become 1
     await page.fill('#diceInput', '3d4-3-1');
     await page.click('#rollBtn');
     await expect(page.locator('.result-formula')).toHaveText('3d4-3-1');
@@ -460,7 +467,7 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
   });
 
   test('should render distributed ceiling formatting with indicators', async ({page}) => {
-    await page.evaluate(() => { Math.random = () => 0.999999; }); // all rolls become max
+    await setMockRandom(page, 0.999999); // all rolls become max
     await page.fill('#diceInput', '3d4+5+7');
     await page.click('#rollBtn');
     await expect(page.locator('.result-formula')).toHaveText('3d4+5+7');
@@ -643,6 +650,7 @@ test.describe('DiceApp - Edge Cases', () => {
 
   test('should handle rapid clicking', async ({page}) => {
     await page.goto(APP_URL);
+    await setMockRandom(page, 0.5);
     await page.fill('#diceInput', '3d6');
 
     // Click roll button rapidly
@@ -654,9 +662,9 @@ test.describe('DiceApp - Edge Cases', () => {
 
     // Should still show results
     const results = page.locator('.result-item');
-    const count = await results.count();
-    expect(count).toBeGreaterThanOrEqual(1);
-    expect(count).toBeLessThanOrEqual(3);
+    await expect(results).toHaveCount(3);
+    await expect(page.locator('.error')).toHaveCount(0);
+    await expect(page.locator('.result-formula')).toHaveCount(3);
   });
 
   test('should reject very large numbers (overflow count)', async ({page}) => {
@@ -752,12 +760,12 @@ test.describe('DiceApp - Performance', () => {
     const interactionTimes = [];
 
     for (let i = 0; i < 10; i++) {
-      const startTime = Date.now();
+      const interactionStartTime = Date.now();
       await page.fill('#diceInput', `${i + 1}d6`);
       await page.click('#rollBtn');
       await page.waitForSelector('.result-item');
-      const duration = Date.now() - startTime;
-      interactionTimes.push(duration);
+      const interactionDuration = Date.now() - interactionStartTime;
+      interactionTimes.push(interactionDuration);
       await page.click('#clearBtn');
     }
 
