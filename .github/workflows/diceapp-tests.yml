@@ -1,5 +1,8 @@
 name: DiceApp CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ 'main']
