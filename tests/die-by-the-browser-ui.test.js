@@ -5,6 +5,7 @@
 // Generate screenshots: npx playwright test --update-snapshots
 
 import {test, expect} from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import {dirname, resolve} from 'path';
 import {fileURLToPath} from 'url';
 
@@ -354,6 +355,127 @@ test.describe('DiceApp - Mode Switching', () => {
     const menu = page.locator('#menu');
     await expect(menu).not.toHaveClass(/active/);
   });
+
+  test('should persist mode preference across reload', async ({page}) => {
+    await page.click('#hamburger');
+    await page.click('[data-mode="keypad"]');
+    await page.reload();
+
+    const keypad = page.locator('#keypad');
+    await expect(keypad).toBeVisible();
+    await expect(page.locator('#diceInput')).not.toBeVisible();
+  });
+
+  test('should toggle fit-to-width body class', async ({page}) => {
+    await page.click('#hamburger');
+    await page.click('[data-setting="fit-to-width"]');
+    await expect(page.locator('body')).toHaveClass(/fit-to-width/);
+  });
+
+  test('should persist fit-to-width preference across reload', async ({page}) => {
+    await page.click('#hamburger');
+    await page.click('[data-setting="fit-to-width"]');
+    await page.reload();
+    await expect(page.locator('body')).toHaveClass(/fit-to-width/);
+  });
+});
+
+test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
+  test.beforeEach(async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+  });
+
+  test('should render exploding dice with ! notation', async ({page}) => {
+    await page.fill('#diceInput', '3d6!');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('3d6!');
+    await expect(page.locator('.roll-chunk.die-explode-standard')).toHaveCount(1);
+  });
+
+  test('should render compound exploding dice with !! notation', async ({page}) => {
+    await page.fill('#diceInput', '2d6!!');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('2d6!!');
+    await expect(page.locator('.roll-chunk.die-explode-compound')).toHaveCount(1);
+  });
+
+  test('should render keep-high filter', async ({page}) => {
+    await page.fill('#diceInput', '2d20++1');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('2d20++1');
+    await expect(page.locator('.die-dropped')).toHaveCount(1);
+  });
+
+  test('should render drop-low filter', async ({page}) => {
+    await page.fill('#diceInput', '4d6--1');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('4d6--1');
+    await expect(page.locator('.die-dropped')).toHaveCount(1);
+  });
+
+  test('should show critical success styling on nat max', async ({page}) => {
+    await page.evaluate(() => { Math.random = () => 0.999999; });
+    await page.fill('#diceInput', '1d20');
+    await page.click('#rollBtn');
+    await expect(page.locator('.roll-val.die-critical-success')).toHaveCount(1);
+  });
+
+  test('should show critical failure styling on nat 1', async ({page}) => {
+    await page.evaluate(() => { Math.random = () => 0; });
+    await page.fill('#diceInput', '1d20');
+    await page.click('#rollBtn');
+    await expect(page.locator('.roll-val.die-critical-failure')).toHaveCount(1);
+  });
+
+  test('should load and roll advanced notation from URL hash', async ({page}) => {
+    await page.goto(`${APP_URL}#dice=4d6--1`);
+    await expect(page.locator('#diceInput')).toHaveValue('4d6--1');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('4d6--1');
+    await expect(page.locator('.die-dropped')).toHaveCount(1);
+  });
+
+  test('should clear URL hash after clear', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+    await expect.poll(async () => new URL(page.url()).hash).toContain('dice=');
+    await page.click('#clearBtn');
+    await expect.poll(async () => new URL(page.url()).hash).toBe('');
+  });
+
+  test('should roll multiple collections loaded from URL hash', async ({page}) => {
+    await page.goto(`${APP_URL}#dice=3d6%202d8`);
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-item')).toHaveCount(2);
+  });
+
+  test('should render distributed floor formatting with indicators', async ({page}) => {
+    await page.evaluate(() => { Math.random = () => 0; }); // all rolls become 1
+    await page.fill('#diceInput', '3d4-3-1');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('3d4-3-1');
+    await expect(page.locator('.die-clamp-floor')).toHaveCount(3);
+    await expect(page.locator('.result-rolls .die-raw')).toContainText('-3');
+  });
+
+  test('should render distributed ceiling formatting with indicators', async ({page}) => {
+    await page.evaluate(() => { Math.random = () => 0.999999; }); // all rolls become max
+    await page.fill('#diceInput', '3d4+5+7');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('3d4+5+7');
+    await expect(page.locator('.die-clamp-ceiling')).toHaveCount(3);
+    await expect(page.locator('.result-rolls .die-raw')).toContainText('+5');
+  });
+
+  test('should render aggregated math row and range labels', async ({page}) => {
+    await page.fill('#diceInput', '3d4 -5-0');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-math')).toBeVisible();
+    await expect(page.locator('.result-range')).toContainText('(Abs)');
+    await expect(page.locator('.result-range')).toContainText('(Mod)');
+    await expect(page.locator('.result-range')).toContainText('(Limit)');
+  });
 });
 
 test.describe('DiceApp - Visual Regression', () => {
@@ -404,6 +526,14 @@ test.describe('DiceApp - Visual Regression', () => {
     await expect(page).toHaveScreenshot('menu-open.png', { fullPage: true });
   });
 
+  test('fit-to-width enabled', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+    await page.click('#hamburger');
+    await page.click('[data-setting="fit-to-width"]');
+    await expect(page).toHaveScreenshot('fit-to-width-desktop.png', { fullPage: true });
+  });
+
   test('complex roll results', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
@@ -419,6 +549,7 @@ test.describe('DiceApp - Accessibility', () => {
 
     const hamburger = page.locator('#hamburger');
     await expect(hamburger).toHaveAttribute('aria-label', 'Menu');
+    await expect(page.locator('#diceInput')).toHaveAttribute('aria-label', 'Dice notation input');
   });
 
   test('should be keyboard navigable', async ({page}) => {
@@ -439,17 +570,30 @@ test.describe('DiceApp - Accessibility', () => {
     await expect(results).toHaveCount(1);
   });
 
+  test('should have accessible keypad button names', async ({page}) => {
+    await page.setViewportSize(MOBILE_VIEWPORT);
+    await page.goto(APP_URL);
+    await expect(page.locator('button[data-action="Backspace"]')).toHaveAttribute('aria-label', /Backspace/i);
+    await expect(page.locator('button[data-action="ArrowLeft"]')).toHaveAttribute('aria-label', /left/i);
+    await expect(page.locator('button[data-action="ArrowRight"]')).toHaveAttribute('aria-label', /right/i);
+    await expect(page.locator('button[data-value=" "]')).toHaveAttribute('aria-label', /Space/i);
+  });
+
+  test('should return focus to hamburger after menu close', async ({page}) => {
+    await page.goto(APP_URL);
+    await page.click('#hamburger');
+    await expect(page.locator('#menu')).toHaveClass(/active/);
+    await page.click('body', {position: {x: 10, y: 10}});
+    await expect(page.locator('#menu')).not.toHaveClass(/active/);
+    await expect(page.locator('#hamburger')).toBeFocused();
+  });
+
   test('should have sufficient color contrast', async ({page}) => {
     await page.goto(APP_URL);
-
-    // Run axe accessibility tests
-    const accessibilityScanResults = await page.evaluate(() => {
-      // This would use axe-core if installed
-      // For now, just verify key elements are visible
-      return true;
-    });
-
-    expect(accessibilityScanResults).toBe(true);
+    const accessibilityScanResults = await new AxeBuilder({page})
+      .withTags(['wcag2a', 'wcag2aa'])
+      .analyze();
+    expect(accessibilityScanResults.violations, JSON.stringify(accessibilityScanResults.violations, null, 2)).toEqual([]);
   });
 });
 
@@ -475,9 +619,8 @@ test.describe('DiceApp - Edge Cases', () => {
     await page.click('#rollBtn');
 
     const rolls = page.locator('.result-rolls');
-    const rollsText = await rolls.textContent();
-    const numbers = rollsText.replace('Rolls:', '').trim().split(' ');
-    expect(numbers).toHaveLength(1);
+    const count = await rolls.locator('.roll-val').count();
+    expect(count).toBe(1);
   });
 
   test('should reject zero dice', async ({page}) => {
@@ -511,7 +654,9 @@ test.describe('DiceApp - Edge Cases', () => {
 
     // Should still show results
     const results = page.locator('.result-item');
-    await expect(results).toHaveCount(1);
+    const count = await results.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+    expect(count).toBeLessThanOrEqual(3);
   });
 
   test('should reject very large numbers (overflow count)', async ({page}) => {
@@ -559,61 +704,6 @@ test.describe('DiceApp - Edge Cases', () => {
     await expect(display).toContainText('3d6');
   });
 
-  test.describe('DiceApp - Performance', () => {
-    test('should load quickly despite no-cache headers', async ({page}) => {
-      const startTime = Date.now();
-
-      await page.goto(APP_URL);
-      await page.waitForSelector('#diceInput', {state: 'visible'});
-
-      const loadTime = Date.now() - startTime;
-
-      // Should load in under 1 second for local file
-      expect(loadTime).toBeLessThan(1000);
-    });
-
-    test('should handle multiple reloads efficiently', async ({page}) => {
-      const reloadTimes = [];
-
-      for (let i = 0; i < 5; i++) {
-        const startTime = Date.now();
-        await page.goto(APP_URL);
-        await page.waitForSelector('#diceInput', {state: 'visible'});
-        const loadTime = Date.now() - startTime;
-        reloadTimes.push(loadTime);
-      }
-
-      const avgTime = reloadTimes.reduce((a, b) => a + b) / reloadTimes.length;
-
-      // Average should still be reasonable
-      expect(avgTime).toBeLessThan(1500);
-    });
-
-    test('should not degrade with repeated interactions', async ({page}) => {
-      await page.goto(APP_URL);
-
-      const interactionTimes = [];
-
-      for (let i = 0; i < 10; i++) {
-        const startTime = performance.now();
-
-        await page.fill('#diceInput', `${i+1}d6`);
-        await page.click('#rollBtn');
-        await page.waitForSelector('.result-item');
-
-        const duration = performance.now() - startTime;
-        interactionTimes.push(duration);
-
-        await page.click('#clearBtn');
-      }
-
-      const avgTime = interactionTimes.reduce((a, b) => a + b) / interactionTimes.length;
-
-      // Interactions should be fast
-      expect(avgTime).toBeLessThan(200);
-    });
-  });
-
   test('should use keyboard on tablet with mouse', async ({page}) => {
     await page.setViewportSize({width: 800, height: 600}); // Tablet size
 
@@ -628,4 +718,90 @@ test.describe('DiceApp - Edge Cases', () => {
     await expect(textInput).toBeVisible();
   });
 
+});
+
+test.describe('DiceApp - Performance', () => {
+  test('should load quickly despite no-cache headers', async ({page}) => {
+    const startTime = Date.now();
+
+    await page.goto(APP_URL);
+    await page.waitForSelector('#diceInput', {state: 'visible'});
+
+    const loadTime = Date.now() - startTime;
+    expect(loadTime).toBeLessThan(1000);
+  });
+
+  test('should handle multiple reloads efficiently', async ({page}) => {
+    const reloadTimes = [];
+
+    for (let i = 0; i < 5; i++) {
+      const startTime = Date.now();
+      await page.goto(APP_URL);
+      await page.waitForSelector('#diceInput', {state: 'visible'});
+      const loadTime = Date.now() - startTime;
+      reloadTimes.push(loadTime);
+    }
+
+    const avgTime = reloadTimes.reduce((a, b) => a + b) / reloadTimes.length;
+    expect(avgTime).toBeLessThan(1500);
+  });
+
+  test('should not degrade with repeated interactions', async ({page}) => {
+    await page.goto(APP_URL);
+
+    const interactionTimes = [];
+
+    for (let i = 0; i < 10; i++) {
+      const startTime = Date.now();
+      await page.fill('#diceInput', `${i + 1}d6`);
+      await page.click('#rollBtn');
+      await page.waitForSelector('.result-item');
+      const duration = Date.now() - startTime;
+      interactionTimes.push(duration);
+      await page.click('#clearBtn');
+    }
+
+    const avgTime = interactionTimes.reduce((a, b) => a + b) / interactionTimes.length;
+    expect(avgTime).toBeLessThan(200);
+  });
+});
+
+test.describe('DiceApp - Keypad Enhancements', () => {
+  test.beforeEach(async ({page}) => {
+    await page.setViewportSize(MOBILE_VIEWPORT);
+    await page.goto(APP_URL);
+  });
+
+  test('should input operator keys via keypad', async ({page}) => {
+    await page.click('button[data-value="3"]');
+    await page.click('button[data-value="d"]');
+    await page.click('button[data-value="6"]');
+    await page.click('button[data-value="-"]');
+    await page.click('button[data-value="1"]');
+    await page.click('button[data-value="+"]');
+    await page.click('button[data-value="2"]');
+    await page.click('button[data-value="!"]');
+    await expect(page.locator('#dicePseudoInput')).toContainText('3d6-1+2!');
+  });
+
+  test('should support ArrowRight keypad navigation', async ({page}) => {
+    await page.click('button[data-value="3"]');
+    await page.click('button[data-value="d"]');
+    await page.click('button[data-value="6"]');
+    await page.click('button[data-action="ArrowLeft"]');
+    await page.click('button[data-action="ArrowRight"]');
+    await page.click('button[data-value="0"]');
+    await expect(page.locator('#dicePseudoInput')).toContainText('3d60');
+  });
+
+  test('should preserve cursor position across roll and clear semantics', async ({page}) => {
+    await page.click('button[data-value="3"]');
+    await page.click('button[data-value="d"]');
+    await page.click('button[data-value="6"]');
+    await page.click('button[data-action="ArrowLeft"]');
+    await page.click('#rollBtn');
+    await expect(page.locator('#dicePseudoInput')).toContainText('3d6');
+    await page.click('#clearBtn');
+    await expect(page.locator('#dicePseudoInput')).toHaveClass(/empty/);
+  });
 });

@@ -75,8 +75,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            /*background: conic-gradient(from 45deg at 50% 50%,*/
-            background: #0a0e1f ;
+            background: #0a0e1f;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -257,27 +256,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             margin-bottom: 20px;
         }
 
-                    #diceInput {
-                width: 100%;
-                padding: 15px;
-                font-size: 1.2em;
-                border: 2px solid #2AE3F3;
-                background: #0d142d;
-                color: #ffffff;
-                border-radius: 10px;
-                outline: none;
-                transition: border-color 0.3s;
-                font-family: inherit;
-                line-height: 1.4;
-                resize: none;
-                overflow-y: hidden;
-                min-height: 52px;
-                white-space: pre-wrap;
-                overflow-wrap: break-word;
-            }
+        #diceInput {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2em;
+            border: 2px solid #2AE3F3;
+            background: #0d142d;
+            color: #ffffff;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            font-family: inherit;
+            line-height: 1.4;
+            resize: none;
+            overflow-y: hidden;
+            min-height: 52px;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
 
         #diceInput:focus {
-            border-color: #2AE3F3;
+            border-color: #7EEBF7;
+            box-shadow: 0 0 0 3px rgba(42, 227, 243, 0.25);
         }
 
         #dicePseudoInput {
@@ -768,13 +768,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 <button class="key" data-value="9">9</button>
                 <button class="key special" data-value="d">d</button>
                 <button class="key" data-value="0">0</button>
-                <button class="key special" data-value=" ">␣</button>
+                <button class="key special" data-value=" " aria-label="Space">␣</button>
                 <button class="key operator" data-value="-">-</button>
                 <button class="key operator" data-value="+">+</button>
                 <button class="key operator" data-value="!">!</button>
-                <button class="key nav" data-action="ArrowLeft">←</button>
-                <button class="key delete" data-action="Backspace">⌫</button>
-                <button class="key nav" data-action="ArrowRight">→</button>
+                <button class="key nav" data-action="ArrowLeft" aria-label="Move cursor left">←</button>
+                <button class="key delete" data-action="Backspace" aria-label="Backspace">⌫</button>
+                <button class="key nav" data-action="ArrowRight" aria-label="Move cursor right">→</button>
             </div>
 
             <div class="button-group">
@@ -1513,6 +1513,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     // Utility functions (URL-specific, no dice logic)
     utils: {
       /**
+       * Persist mode and layout preferences.
+       */
+      savePreferences() {
+        try {
+          const {mode, fitToWidth} = DiceApp.state;
+          localStorage.setItem('diceAppPrefs', JSON.stringify({mode, fitToWidth}));
+        } catch (_) {
+          // Ignore storage errors (private mode, disabled storage, etc.)
+        }
+      },
+
+      /**
+       * Load persisted mode and layout preferences.
+       * @returns {{mode?: string, fitToWidth?: boolean}}
+       */
+      loadPreferences() {
+        try {
+          const raw = localStorage.getItem('diceAppPrefs');
+          if (!raw) return {};
+          const parsed = JSON.parse(raw);
+          return {
+            mode: parsed?.mode,
+            fitToWidth: parsed?.fitToWidth
+          };
+        } catch (_) {
+          return {};
+        }
+      },
+
+      /**
        * Get query parameter from URL hash
        * @param {string} param - Parameter name
        * @returns {string|null}
@@ -1819,6 +1849,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       closeMenu() {
         DiceApp.nodes.menu.classList.remove('active');
+        if (DiceApp.nodes.hamburger) {
+          DiceApp.nodes.hamburger.focus();
+        }
       }
     },
 
@@ -1931,6 +1964,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         state.mode = mode;
         actions.detectInputMode();
         ui.renderAll();
+        DiceApp.utils.savePreferences();
         DiceInput.focus(ui.isKeypadMode()); // Ensure the active input is focused after switch
         ui.closeMenu();
       },
@@ -1967,6 +2001,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const {state, ui} = DiceApp;
         state.fitToWidth = !state.fitToWidth;
         ui.renderAll();
+        DiceApp.utils.savePreferences();
         ui.closeMenu();
       }
     },
@@ -3682,6 +3717,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       },
 
       loadInitialConfig() {
+        const prefs = DiceApp.utils.loadPreferences();
+        if (prefs.mode === 'auto' || prefs.mode === 'keyboard' || prefs.mode === 'keypad') {
+          DiceApp.state.mode = prefs.mode;
+        }
+        if (typeof prefs.fitToWidth === 'boolean') {
+          DiceApp.state.fitToWidth = prefs.fitToWidth;
+        }
+
         const diceFromUrl = DiceApp.utils.getQueryParam('dice');
         if (diceFromUrl) {
           DiceApp.state.currentValue = diceFromUrl;
