@@ -256,31 +256,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             margin-bottom: 20px;
         }
 
-        #diceInput {
-            width: 100%;
-            padding: 15px;
-            font-size: 1.2em;
-            border: 2px solid #2AE3F3;
-            background: #0d142d;
-            color: #ffffff;
-            border-radius: 10px;
-            outline: none;
-            transition: border-color 0.3s, box-shadow 0.3s;
-            font-family: inherit;
-            line-height: 1.4;
-            resize: none;
-            overflow-y: hidden;
-            min-height: 52px;
-            white-space: pre-wrap;
-            overflow-wrap: break-word;
-            box-shadow: 0 0 0 3px rgba(42, 227, 243, 0);
-        }
-
-        #diceInput:focus {
-            border-color: #7EEBF7;
-            box-shadow: 0 0 0 3px rgba(42, 227, 243, 0.25);
-        }
-
+        #diceInput,
         #dicePseudoInput {
             width: 100%;
             padding: 15px;
@@ -290,10 +266,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             min-height: 52px;
             background: #0d142d;
             color: #ffffff;
+            box-sizing: border-box;
+            line-height: 1.4;
+            overflow-wrap: break-word;
+        }
+
+        #diceInput {
+            outline: none;
+            font-family: inherit;
+            resize: none;
+            overflow-y: hidden;
+            white-space: pre-wrap;
+            box-shadow: 0 0 0 3px rgba(42, 227, 243, 0);
+        }
+
+        #dicePseudoInput {
             display: none;
             cursor: text;
             word-wrap: break-word;
-            overflow-wrap: break-word;
         }
 
         /*noinspection CssUnusedSymbol*/
@@ -1513,6 +1503,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
     // Utility functions (URL-specific, no dice logic)
     utils: {
+
       /**
        * Persist mode and layout preferences.
        */
