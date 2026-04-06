@@ -1140,30 +1140,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     },
 
     _formatChain(detail) {
-      if (!detail.chain || detail.chain.length <= 1) return `[${detail.raw}]`;
+      if (!detail.chain || detail.chain.length <= 1) return `${detail.raw}`;
       if (detail.compound) return `${detail.displayValue}!!`;
       return `[${detail.chain.map((v, idx) => (idx === detail.chain.length - 1 ? `${v}` : `${v}!`)).join('+')}]`;
     },
 
     /**
-     * Compute roll result with modifier/limit applied.
-     * @param {Uint32Array|number[]} rawRolls - Raw die values
-     * @param {Object} opts - collection options
-     * @param {Function|null} nextRollFn - Optional deterministic roller for explosions
-     * @returns {Object} Result object
+     * Initialize roll details.
+     * @private
      */
-    computeResult(rawRolls, {
-      count, sides, modifier, limit, limitSign, modifierMode,
-      explodeMode = 'none', explodeThreshold = null,
-      filterAction = null, filterDirection = null, filterCount = null
-    }, nextRollFn = null) {
-      const formula = DiceNotation.buildFormula(
-        count, sides, modifier, limit, limitSign, modifierMode,
-        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
-      );
-
-      const rollFn = typeof nextRollFn === 'function' ? nextRollFn : (s) => DiceNotation._rollDie(s);
-      let rollDetails = Array.from(rawRolls).map(raw => ({
+    _initializeRollDetails(rawRolls, sides) {
+      return Array.from(rawRolls).map(raw => ({
         raw,
         chain: [raw],
         displayValue: raw,
@@ -1175,46 +1162,54 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         isCriticalSuccess: raw === sides,
         isCriticalFailure: raw === 1
       }));
+    },
 
-      this._applyExplosions(rollDetails, sides, explodeMode, explodeThreshold, rollFn);
-      if (explodeMode === 'standard') {
-        const expanded = [];
-        rollDetails.forEach(d => {
-          if (!d.chain || d.chain.length <= 1) {
-            expanded.push({
-              raw: d.raw,
-              chain: [d.raw],
-              displayValue: d.raw,
-              rawDisplay: `${d.raw}`,
-              resultDisplay: `${d.raw}`,
-              kept: d.kept,
-              isDropped: d.isDropped,
-              compound: false,
-              isCriticalSuccess: d.raw === sides,
-              isCriticalFailure: d.raw === 1
-            });
-            return;
-          }
+    /**
+     * Expand standard explosions into separate roll details.
+     * @private
+     */
+    _expandStandardExplosions(rollDetails, sides) {
+      const expanded = [];
+      rollDetails.forEach(d => {
+        if (!d.chain || d.chain.length <= 1) {
+          expanded.push({
+            raw: d.raw,
+            chain: [d.raw],
+            displayValue: d.raw,
+            rawDisplay: `${d.raw}`,
+            resultDisplay: `${d.raw}`,
+            kept: d.kept,
+            isDropped: d.isDropped,
+            compound: false,
+            isCriticalSuccess: d.raw === sides,
+            isCriticalFailure: d.raw === 1
+          });
+          return;
+        }
 
-          d.chain.forEach(v => {
-            expanded.push({
-              raw: v,
-              chain: d.chain.slice(),
-              displayValue: v,
-              rawDisplay: `${v}`,
-              resultDisplay: `${v}`,
-              kept: true,
-              isDropped: false,
-              compound: false,
-              isCriticalSuccess: v === sides,
-              isCriticalFailure: v === 1
-            });
+        d.chain.forEach(v => {
+          expanded.push({
+            raw: v,
+            chain: d.chain.slice(),
+            displayValue: v,
+            rawDisplay: `${v}`,
+            resultDisplay: `${v}`,
+            kept: true,
+            isDropped: false,
+            compound: false,
+            isCriticalSuccess: v === sides,
+            isCriticalFailure: v === 1
           });
         });
-        rollDetails = expanded;
-      }
+      });
+      return expanded;
+    },
 
-      this._applyFilter(rollDetails, filterAction, filterDirection, filterCount);
+    /**
+     * Apply display formatting to roll details.
+     * @private
+     */
+    _applyDisplayFormatting(rollDetails, explodeMode) {
       rollDetails.forEach(d => {
         if (explodeMode === 'compound') {
           d.rawDisplay = this._formatChain(d);
@@ -1224,77 +1219,77 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           d.resultDisplay = `${d.displayValue}`;
         }
       });
+    },
 
-      const keptDetails = rollDetails.filter(d => d.kept);
+    /**
+     * Compute result for distributed modifier mode.
+     * @private
+     */
+    _computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
       const effectiveCount = keptDetails.length;
-
-      if (modifierMode === 'none') {
-        const rolls = rollDetails.map(d => d.raw);
-        const total = keptDetails.reduce((s, d) => s + d.displayValue, 0);
-        const min = effectiveCount;
-        const max = effectiveCount * sides;
-        return {formula, mode: 'none', rolls, rollDetails, total, min, max, sides};
-      }
-
-      if (modifierMode === 'distributed') {
-        const dieResults = rollDetails.map(d => {
-          const modified = d.displayValue + modifier;
-          let result = modified;
-          let indicator = '';
-          if (d.kept && limit !== null) {
-            if (limitSign === '-' && modified < limit) {
-              result = limit;
-              indicator = '*';
-            } else if (limitSign === '+' && modified > limit) {
-              result = limit;
-              indicator = '^';
-            }
-          }
-          return {
-            raw: d.raw,
-            rawDisplay: d.rawDisplay,
-            result: d.kept ? result : d.displayValue,
-            resultDisplay: d.kept
-              ? (d.compound && d.chain.length > 1 ? `${result}!!` : `${result}`)
-              : d.resultDisplay,
-            indicator,
-            kept: d.kept,
-            isDropped: d.isDropped,
-            chain: d.chain.slice(),
-            compound: d.compound,
-            isCriticalSuccess: d.isCriticalSuccess,
-            isCriticalFailure: d.isCriticalFailure
-          };
-        });
-
-        const total = dieResults.reduce((s, d) => s + (d.kept ? d.result : 0), 0);
-
-        const rangeRaw = {min: effectiveCount, max: effectiveCount * sides};
-        const perDieMin = 1 + modifier;
-        const perDieMax = sides + modifier;
-        const rangeMod = {min: effectiveCount * perDieMin, max: effectiveCount * perDieMax};
-        let limitMin = perDieMin;
-        let limitMax = perDieMax;
-        if (limit !== null) {
-          if (limitSign === '-') {
-            limitMin = Math.max(perDieMin, limit);
-            limitMax = Math.max(perDieMax, limit);
-          } else {
-            limitMin = Math.min(perDieMin, limit);
-            limitMax = Math.min(perDieMax, limit);
+      const dieResults = rollDetails.map(d => {
+        const modified = d.displayValue + modifier;
+        let result = modified;
+        let indicator = '';
+        if (d.kept && limit !== null) {
+          if (limitSign === '-' && modified < limit) {
+            result = limit;
+            indicator = '*';
+          } else if (limitSign === '+' && modified > limit) {
+            result = limit;
+            indicator = '^';
           }
         }
-        const rangeLimit = limit !== null
-          ? {min: effectiveCount * limitMin, max: effectiveCount * limitMax}
-          : null;
-
         return {
-          formula, mode: 'distributed', dieResults, rollDetails, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
-          limit, limitSign, hasClamp: limit !== null
+          raw: d.raw,
+          rawDisplay: d.rawDisplay,
+          result: d.kept ? result : d.displayValue,
+          resultDisplay: d.kept
+            ? (d.compound && d.chain.length > 1 ? `${result}!!` : `${result}`)
+            : d.resultDisplay,
+          indicator,
+          kept: d.kept,
+          isDropped: d.isDropped,
+          chain: d.chain.slice(),
+          compound: d.compound,
+          isCriticalSuccess: d.isCriticalSuccess,
+          isCriticalFailure: d.isCriticalFailure
         };
-      }
+      });
 
-      // aggregated mode
+      const total = dieResults.reduce((s, d) => s + (d.kept ? d.result : 0), 0);
+
+      const rangeRaw = {min: effectiveCount, max: effectiveCount * sides};
+      const perDieMin = 1 + modifier;
+      const perDieMax = sides + modifier;
+      const rangeMod = {min: effectiveCount * perDieMin, max: effectiveCount * perDieMax};
+      let limitMin = perDieMin;
+      let limitMax = perDieMax;
+      if (limit !== null) {
+        if (limitSign === '-') {
+          limitMin = Math.max(perDieMin, limit);
+          limitMax = Math.max(perDieMax, limit);
+        } else {
+          limitMin = Math.min(perDieMin, limit);
+          limitMax = Math.min(perDieMax, limit);
+        }
+      }
+      const rangeLimit = limit !== null
+        ? {min: effectiveCount * limitMin, max: effectiveCount * limitMax}
+        : null;
+
+      return {
+        formula, mode: 'distributed', dieResults, rollDetails, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
+        limit, limitSign, hasClamp: limit !== null
+      };
+    },
+
+    /**
+     * Compute result for aggregated modifier mode.
+     * @private
+     */
+    _computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
+      const effectiveCount = keptDetails.length;
       const rolls = rollDetails.map(d => d.raw);
       const rawSum = keptDetails.reduce((s, d) => s + d.displayValue, 0);
       const modifiedSum = rawSum + modifier;
@@ -1331,6 +1326,52 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         formula, mode: 'aggregated', rolls, rollDetails, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, sides,
         limit, limitSign, hasClamp: limit !== null
       };
+    },
+
+    /**
+     * Compute roll result with modifier/limit applied.
+     * @param {Uint32Array|number[]} rawRolls - Raw die values
+     * @param {Object} opts - collection options
+     * @param {Function|null} nextRollFn - Optional deterministic roller for explosions
+     * @returns {Object} Result object
+     */
+    computeResult(rawRolls, {
+      count, sides, modifier, limit, limitSign, modifierMode,
+      explodeMode = 'none', explodeThreshold = null,
+      filterAction = null, filterDirection = null, filterCount = null
+    }, nextRollFn = null) {
+      const formula = DiceNotation.buildFormula(
+        count, sides, modifier, limit, limitSign, modifierMode,
+        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
+      );
+
+      const rollFn = typeof nextRollFn === 'function' ? nextRollFn : (s) => DiceNotation._rollDie(s);
+      let rollDetails = this._initializeRollDetails(rawRolls, sides);
+
+      this._applyExplosions(rollDetails, sides, explodeMode, explodeThreshold, rollFn);
+      if (explodeMode === 'standard') {
+        rollDetails = this._expandStandardExplosions(rollDetails, sides);
+      }
+
+      this._applyFilter(rollDetails, filterAction, filterDirection, filterCount);
+      this._applyDisplayFormatting(rollDetails, explodeMode);
+
+      const keptDetails = rollDetails.filter(d => d.kept);
+      const effectiveCount = keptDetails.length;
+
+      if (modifierMode === 'none') {
+        const rolls = rollDetails.map(d => d.raw);
+        const total = keptDetails.reduce((s, d) => s + d.displayValue, 0);
+        const min = effectiveCount;
+        const max = effectiveCount * sides;
+        return {formula, mode: 'none', rolls, rollDetails, total, min, max, sides};
+      }
+
+      if (modifierMode === 'distributed') {
+        return this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
+      }
+
+      return this._computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
     },
 
     /**
@@ -1581,14 +1622,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
          * @param {number} sides
          * @returns {string}
          */
-                    const rollValSpans = (rolls, sides) => {
-              const w = String(sides).length;
-              return rolls.map((v) =>
-                `<span class="roll-chunk">` +
-                `<span class="roll-val" style="min-width:${w}ch">${v}</span>` +
-                `</span>`
-              ).join('');
-            };
+        const rollValSpans = (rolls, sides) => {
+          const w = String(sides).length;
+          return rolls.map((v) =>
+            `<span class="roll-chunk">` +
+            `<span class="roll-val" style="min-width:${w}ch">${v}</span>` +
+            `</span>`
+          ).join('');
+        };
 
         let newHTML = '';
         if (state.isRolling) {
@@ -1604,6 +1645,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
              * @param {number} val - Displayed numeric value
              * @param {string} indicator - '' | '*' | '^'
              * @param {number} minWidth - ch width for alignment
+             * @param extraClassName
+             * @param chipClassName
              * @returns {string}
              */
             const gameSpan = (val, indicator, minWidth, extraClassName = '', chipClassName = '') => {
@@ -1629,13 +1672,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // Theoretical max game-result width (digits only — indicator is now text-decoration).
               // A floor limit (-) is the true minimum displayed value (result ≥ limit by definition).
               // A ceiling limit (+) is the true maximum displayed value (result ≤ limit by definition).
-              const theorMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
-              const theorMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
+              const theoreticalMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
+              const theoreticalMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
               const hasCompoundExplode = r.dieResults.some(d => d.compound);
               const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
               const maxGameWidth = hasCompoundExplode
                 ? compoundWidth
-                : Math.max(String(theorMinGame).length, String(theorMaxGame).length);
+                : Math.max(String(theoreticalMinGame).length, String(theoreticalMaxGame).length);
               const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
 
               const rollsDisplay = r.dieResults.map(d => {
