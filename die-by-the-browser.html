@@ -57,18 +57,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         :root {
             --placeholder-text: "e.g., 3d6 4d12";
             --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
-            --clamp-floor: #7FD3FF; /* cyan */
-            --clamp-ceil:  #FFD166; /* amber */
+            --clamp-floor: #FFFFFF;
+            --clamp-ceil:  #FFD166;
+
+            --glow-core:      42, 227, 243;
+            --glow-mid:        0, 180, 255;
+
+            --glow2-core:     220, 139, 249;
+            --glow2-mid:      213, 142, 249;
+
+            --inner-spread:   6px;
+            --inner-opacity:  0.50;
+            --outer-spread:   10px;
+            --outer-opacity:  0.80;
+            --border-opacity: 0.70;
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: conic-gradient(from 45deg at 50% 50%,
-            #0a0e1f 0deg,
-            #2AE3F3 90deg,
-            #05699f 180deg,
-            #1a2456 270deg,
-            #0a0e1f 360deg);
+            /*background: conic-gradient(from 45deg at 50% 50%,*/
+            background: #0a0e1f ;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -77,7 +85,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         .container {
-            background: #1a2238;
+            background: #0B1637;
             color: #ffffff;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -87,21 +95,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             position: relative;
         }
 
+        .app-header {
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+            margin-bottom: 30px;
+        }
+
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
             gap: 10px;
         }
 
         h1 {
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: #2AE3F3;
             text-align: center;
-            font-size: 1.5em;
+            font-size: 1.75em;
             white-space: nowrap;
             flex: 1;
             margin: 0;
+        }
+
+        .title-icon {
+            width: 2.5em;
+            height: 2.5em;
+            margin-right: 0.3em;
         }
 
         .hamburger {
@@ -115,12 +138,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             justify-content: center;
             align-items: center;
             gap: 4px;
-            padding: 4px;
+            padding: 0;
             border-radius: 6px;
             transition: background 0.3s;
             flex-shrink: 0;
             flex-grow: 0;
             flex-basis: 30px;
+            align-self: center;
+            margin-top: 0.4em;
         }
 
         .hamburger:hover {
@@ -137,8 +162,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .menu {
             position: absolute;
-            top: 70px;
-            right: 30px;
+            top: 100%;
+            right: 0;
+            left: auto;
             background: #252d4a;
             color: #ffffff;
             border-radius: 10px;
@@ -147,6 +173,43 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             min-width: 200px;
             display: none;
             z-index: 1000;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            padding: 24px 32px;
+            background: rgba(11, 22, 55, 0.9);
+            backdrop-filter: blur(8px);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(42, 227, 243, 0.3);
+            color: #2AE3F3;
+            font-weight: 600;
+            font-size: 1.2em;
+            z-index: 2000;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid rgba(42, 227, 243, 0.3);
+            border-top-color: #2AE3F3;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /*noinspection CssUnusedSymbol*/
@@ -182,6 +245,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         .menu-check {
             color: #2AE3F3;
             font-size: 1.2em;
+        }
+
+        .menu-separator {
+            border: 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+            margin: 8px 6px;
         }
 
         .input-section {
@@ -332,6 +401,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             margin-bottom: 20px;
         }
 
+        .keypad-group {
+            width: min(100%, 420px);
+            margin: 0 auto;
+        }
+
         button {
             flex: 1;
             padding: 15px;
@@ -352,6 +426,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             background: #23cbd9;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(42, 227, 243, 0.4);
+        }
+
+        #rollBtn:disabled {
+            background: #252d4a;
+            color: #718096;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.7;
         }
 
         #clearBtn {
@@ -457,7 +540,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #a0aec0;
         }
 
-        /* Range label badges: (Limit) and (Abs) */
+        /* Range label badges: (Abs), (Mod), and (Limit) */
         .range-label {
             font-size: 0.85em;
             color: #718096;
@@ -514,6 +597,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             text-decoration-color: var(--clamp-ceil);
         }
 
+        .die-explode-standard {
+            border-color: rgba(var(--glow-core), var(--border-opacity)) !important;
+            box-shadow:
+                0 0 var(--inner-spread) rgba(var(--glow-core), var(--inner-opacity)),
+                0 0 var(--outer-spread) rgba(var(--glow-mid), var(--outer-opacity));
+        }
+
+        .die-explode-compound {
+            border-color: rgba(var(--glow2-core), var(--border-opacity)) !important;
+            box-shadow:
+                0 0 var(--inner-spread) rgba(var(--glow2-core), var(--inner-opacity)),
+                0 0 var(--outer-spread) rgba(var(--glow2-mid), var(--outer-opacity));
+        }
+
+        .die-compound-val {
+            font-style: italic;
+        }
+
         /* Each die-cell keeps game-result + raw-math together when wrapping */
         .die-cell {
             display: inline-flex;
@@ -531,6 +632,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #718096;
             font-size: 0.88em;
             margin-right: 4px;
+        }
+
+        .die-dropped {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .die-critical-success {
+            color: #4ade80;
+            font-weight: 700;
+        }
+
+        .die-critical-failure {
+            color: #f87171;
+            font-weight: 700;
         }
 
         .error {
@@ -567,64 +683,105 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             display: none !important;
         }
 
+        body.force-keypad {
+            padding: 0;
+        }
+
+        body.fit-to-width {
+            padding: 0;
+        }
+
+        body.fit-to-width .container {
+            max-width: none;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        body.force-keypad .container {
+            padding: 8px;
+            border-radius: 0;
+        }
+
+
+        body.force-keypad .results {
+            padding: 3px;
+        }
+
+        body.force-keypad .result-item {
+            padding: 10px 5px;
+        }
+
+        body.force-keypad .result-rolls {
+            padding: 3px 4px;
+        }
+
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="header">
-        <h1>🎲 Die! By the Browser</h1>
-        <button class="hamburger" id="hamburger" aria-label="Menu">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-    </div>
+    <div class="app-header">
+        <div class="header">
+            <h1><img class="title-icon" src="data:image/png;base64,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" alt="" aria-hidden="true">Die! By the Browser</h1>
+            <button class="hamburger" id="hamburger" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
 
-    <div class="menu" id="menu">
-        <div class="menu-item" data-mode="auto">
-            <span class="menu-label">Auto (Responsive)</span>
-            <span class="menu-check">✓</span>
-        </div>
-        <div class="menu-item" data-mode="keyboard">
-            <span class="menu-label">External Keyboard</span>
-            <span class="menu-check">✓</span>
-        </div>
-        <div class="menu-item" data-mode="keypad">
-            <span class="menu-label">Onscreen Keypad</span>
-            <span class="menu-check">✓</span>
+        <div class="menu" id="menu">
+            <div class="menu-item" data-mode="auto">
+                <span class="menu-label">Auto (Responsive)</span>
+                <span class="menu-check">✓</span>
+            </div>
+            <div class="menu-item" data-mode="keyboard">
+                <span class="menu-label">External Keyboard</span>
+                <span class="menu-check">✓</span>
+            </div>
+            <div class="menu-item" data-mode="keypad">
+                <span class="menu-label">Onscreen Keypad</span>
+                <span class="menu-check">✓</span>
+            </div>
+            <hr class="menu-separator">
+            <div class="menu-item" data-setting="fit-to-width">
+                <span class="menu-label">Fit to Width</span>
+                <span class="menu-check">✓</span>
+            </div>
         </div>
     </div>
 
     <div class="input-section">
-        <textarea id="diceInput" rows="1" autocomplete="off" aria-label="Dice notation input"></textarea>
-        <div id="dicePseudoInput" class="empty"></div>
-    </div>
+            <textarea id="diceInput" rows="1" autocomplete="off" aria-label="Dice notation input"></textarea>
+            <div id="dicePseudoInput" class="empty"></div>
+        </div>
 
-    <div class="keypad" id="keypad">
-        <button class="key" data-value="1">1</button>
-        <button class="key" data-value="2">2</button>
-        <button class="key" data-value="3">3</button>
-        <button class="key" data-value="4">4</button>
-        <button class="key" data-value="5">5</button>
-        <button class="key" data-value="6">6</button>
-        <button class="key" data-value="7">7</button>
-        <button class="key" data-value="8">8</button>
-        <button class="key" data-value="9">9</button>
-        <button class="key special" data-value="d">d</button>
-        <button class="key" data-value="0">0</button>
-        <button class="key special" data-value=" ">␣</button>
-        <button class="key operator" data-value="-">-</button>
-        <button class="key operator" data-value="+">+</button>
-        <button class="key operator" data-value="!">!</button>
-        <button class="key nav" data-action="ArrowLeft">←</button>
-        <button class="key delete" data-action="Backspace">⌫</button>
-        <button class="key nav" data-action="ArrowRight">→</button>
-    </div>
+        <div class="keypad-group">
+            <div class="keypad" id="keypad">
+                <button class="key" data-value="1">1</button>
+                <button class="key" data-value="2">2</button>
+                <button class="key" data-value="3">3</button>
+                <button class="key" data-value="4">4</button>
+                <button class="key" data-value="5">5</button>
+                <button class="key" data-value="6">6</button>
+                <button class="key" data-value="7">7</button>
+                <button class="key" data-value="8">8</button>
+                <button class="key" data-value="9">9</button>
+                <button class="key special" data-value="d">d</button>
+                <button class="key" data-value="0">0</button>
+                <button class="key special" data-value=" ">␣</button>
+                <button class="key operator" data-value="-">-</button>
+                <button class="key operator" data-value="+">+</button>
+                <button class="key operator" data-value="!">!</button>
+                <button class="key nav" data-action="ArrowLeft">←</button>
+                <button class="key delete" data-action="Backspace">⌫</button>
+                <button class="key nav" data-action="ArrowRight">→</button>
+            </div>
 
-    <div class="button-group">
-        <button id="rollBtn">Roll Dice</button>
-        <button id="clearBtn">Clear</button>
-    </div>
+            <div class="button-group">
+                <button id="rollBtn">Roll Dice</button>
+                <button id="clearBtn">Clear</button>
+            </div>
+        </div>
 
     <div class="results" id="results"></div>
 </div>
@@ -652,93 +809,199 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
    * Symmetry Rule: the limit sign must match the modifier sign.
    */
   const DiceNotation = {
+    MAX_EXPLOSION_ITERATIONS: 20,
+    MIN_EXPLOSION_THRESHOLD: 2,
+
     /**
      * Parse dice notation string into structured collection data.
      * @param {string} input - Notation like "3d6 4d12" or "2 3d4-2-0"
      * @returns {Object} {collections: Array|null, error: string|null}
      */
     parse(input) {
-      if (!input || typeof input !== 'string') return {collections: null, error: 'INVALID_FORMAT'};
+      const ast = this._parseToAST(input);
+      if (ast.error) return {collections: null, error: ast.error};
+      return {collections: this._astToCollections(ast.root), error: null};
+    },
 
+    _parseToAST(input) {
+      if (!input || typeof input !== 'string') return {root: null, error: 'INVALID_FORMAT'};
       const trimmed = input.trim();
-      if (!trimmed) return {collections: null, error: 'INVALID_FORMAT'};
+      if (!trimmed) return {root: null, error: 'INVALID_FORMAT'};
 
       const tokens = trimmed.split(/\s+/);
-      const collections = [];
+      const root = {type: 'Expression', groups: []};
       let i = 0;
       let totalCount = 0;
-
-      // Token patterns
       const pureIntRe = /^\d+$/;
-      const diceRe = /^(\d+)d(\d+)(([+-])(\d+)(([+-])(\d+))?)?$/i;
       const aggModRe = /^([+-])(\d+)(([+-])(\d+))?$/;
 
       while (i < tokens.length) {
-        // Check for optional batch count (pure integer, no 'd')
         let batchCount = 1;
         if (pureIntRe.test(tokens[i])) {
           batchCount = parseInt(tokens[i], 10);
           i++;
-          if (batchCount <= 0) return {collections: null, error: 'INVALID_FORMAT'};
-          if (i >= tokens.length) return {collections: null, error: 'INVALID_FORMAT'};
+          if (batchCount <= 0 || i >= tokens.length) return {root: null, error: 'INVALID_FORMAT'};
         }
 
-        // Parse dice token (may include attached distributed modifier+limit)
-        const diceMatch = tokens[i].match(diceRe);
-        if (!diceMatch) return {collections: null, error: 'INVALID_FORMAT'};
+        const parsedDice = this._parseDiceToken(tokens[i]);
+        if (parsedDice.error) return {root: null, error: parsedDice.error};
+        const group = parsedDice.group;
 
-        const count = parseInt(diceMatch[1], 10);
-        const sides = parseInt(diceMatch[2], 10);
+        if (group.count <= 0 || group.sides <= 0) return {root: null, error: 'INVALID_FORMAT'};
+        if (group.count > DiceApp.MAX_DICE_COUNT) return {root: null, error: 'TOO_MANY_DICE'};
+        if (group.sides > DiceApp.MAX_DIE_SIDES) return {root: null, error: 'TOO_MANY_SIDES'};
 
-        if (count <= 0 || sides <= 0) return {collections: null, error: 'INVALID_FORMAT'};
-        if (count > DiceApp.MAX_DICE_COUNT) return {collections: null, error: 'TOO_MANY_DICE'};
-        if (sides > DiceApp.MAX_DIE_SIDES) return {collections: null, error: 'TOO_MANY_SIDES'};
+        totalCount += group.count * batchCount;
+        if (totalCount > DiceApp.MAX_DICE_COUNT) return {root: null, error: 'TOO_MANY_DICE'};
 
-        totalCount += count * batchCount;
-        if (totalCount > DiceApp.MAX_DICE_COUNT) return {collections: null, error: 'TOO_MANY_DICE'};
-
-        let modifier = 0;
-        let limit = null;
-        let limitSign = null;
-        let modifierMode = 'none';
-
-        if (diceMatch[3]) {
-          // Distributed modifier attached directly to dice token (no space)
-          const modSign = diceMatch[4];
-          modifier = parseInt(modSign + diceMatch[5], 10);
-          modifierMode = 'distributed';
-          if (Math.abs(modifier) > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
-          if (diceMatch[6]) {
-            const lim = DiceNotation._parseLimit(modSign, diceMatch[7], diceMatch[8]);
-            if (lim.error) return {collections: null, error: lim.error};
-            ({limit, limitSign} = lim);
-            if (limit > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
-          }
+        if (group.modifierMode !== 'none' && Math.abs(group.modifier) > DiceApp.MAX_MODIFIER) {
+          return {root: null, error: 'MODIFIER_TOO_LARGE'};
         }
+        if (group.limit !== null && group.limit > DiceApp.MAX_MODIFIER) {
+          return {root: null, error: 'MODIFIER_TOO_LARGE'};
+        }
+
         i++;
 
-        // Check for space-separated aggregated modifier (only if no distributed modifier)
-        if (i < tokens.length && modifierMode === 'none') {
+        // Parse optional space-separated aggregated modifier token if no distributed modifier exists.
+        if (i < tokens.length && group.modifierMode === 'none') {
           const aggMatch = tokens[i].match(aggModRe);
           if (aggMatch) {
             const modSign = aggMatch[1];
-            modifier = parseInt(modSign + aggMatch[2], 10);
-            modifierMode = 'aggregated';
-            if (Math.abs(modifier) > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
+            group.modifier = parseInt(modSign + aggMatch[2], 10);
+            group.modifierMode = 'aggregated';
+            if (Math.abs(group.modifier) > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
             if (aggMatch[3]) {
-              const lim = DiceNotation._parseLimit(modSign, aggMatch[4], aggMatch[5]);
-              if (lim.error) return {collections: null, error: lim.error};
-              ({limit, limitSign} = lim);
-              if (limit > DiceApp.MAX_MODIFIER) return {collections: null, error: 'MODIFIER_TOO_LARGE'};
+              const lim = this._parseLimit(modSign, aggMatch[4], aggMatch[5]);
+              if (lim.error) return {root: null, error: lim.error};
+              group.limit = lim.limit;
+              group.limitSign = lim.limitSign;
+              if (group.limit > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
             }
             i++;
           }
         }
 
-        collections.push({batchCount, count, sides, modifier, limit, limitSign, modifierMode});
+        root.groups.push({
+          type: 'DiceGroup',
+          batchCount,
+          ...group
+        });
       }
 
-      return {collections: collections.length > 0 ? collections : null, error: null};
+      return {root, error: null};
+    },
+
+    _astToCollections(root) {
+      if (!root || !Array.isArray(root.groups) || root.groups.length === 0) return null;
+      return root.groups.map(g => ({
+        batchCount: g.batchCount,
+        count: g.count,
+        sides: g.sides,
+        modifier: g.modifier,
+        limit: g.limit,
+        limitSign: g.limitSign,
+        modifierMode: g.modifierMode,
+        explodeMode: g.explodeMode,
+        explodeThreshold: g.explodeThreshold,
+        filterAction: g.filterAction,
+        filterDirection: g.filterDirection,
+        filterCount: g.filterCount
+      }));
+    },
+
+    _parseDiceToken(token) {
+      const baseMatch = token.match(/^(\d+)d(\d+)/i);
+      if (!baseMatch) return {group: null, error: 'INVALID_FORMAT'};
+
+      const count = parseInt(baseMatch[1], 10);
+      const sides = parseInt(baseMatch[2], 10);
+      let idx = baseMatch[0].length;
+
+      const group = {
+        count,
+        sides,
+        modifier: 0,
+        limit: null,
+        limitSign: null,
+        modifierMode: 'none',
+        explodeMode: 'none',
+        explodeThreshold: null,
+        filterAction: null,
+        filterDirection: null,
+        filterCount: null
+      };
+
+      // Explosion: !, !!, !Y
+      if (idx < token.length && token[idx] === '!') {
+        idx++;
+        if (idx < token.length && token[idx] === '!') {
+          group.explodeMode = 'compound';
+          group.explodeThreshold = sides;
+          idx++;
+        } else {
+          group.explodeMode = 'standard';
+          let thresholdDigits = '';
+          while (idx < token.length && /[0-9]/.test(token[idx])) {
+            thresholdDigits += token[idx];
+            idx++;
+          }
+          group.explodeThreshold = thresholdDigits ? parseInt(thresholdDigits, 10) : sides;
+        }
+        if (group.explodeThreshold < this.MIN_EXPLOSION_THRESHOLD || group.explodeThreshold > sides) {
+          return {group: null, error: 'INVALID_EXPLODE_THRESHOLD'};
+        }
+      }
+
+      // Filter: ++Y, +-Y, -+Y, --Y
+      if (idx + 2 <= token.length && (token[idx] === '+' || token[idx] === '-') && (token[idx + 1] === '+' || token[idx + 1] === '-')) {
+        const actionOp = token[idx];
+        const directionOp = token[idx + 1];
+        idx += 2;
+
+        let filterDigits = '';
+        while (idx < token.length && /[0-9]/.test(token[idx])) {
+          filterDigits += token[idx];
+          idx++;
+        }
+        if (!filterDigits) return {group: null, error: 'INVALID_FORMAT'};
+        group.filterCount = parseInt(filterDigits, 10);
+        if (group.filterCount <= 0) return {group: null, error: 'INVALID_FORMAT'};
+        group.filterAction = actionOp === '+' ? 'keep' : 'drop';
+        group.filterDirection = directionOp === '+' ? 'high' : 'low';
+      }
+
+      // Distributed modifier / limit: (+|-)N((+|-)N)?
+      if (idx < token.length && (token[idx] === '+' || token[idx] === '-') && idx + 1 < token.length && /[0-9]/.test(token[idx + 1])) {
+        const modSign = token[idx];
+        idx++;
+        let modDigits = '';
+        while (idx < token.length && /[0-9]/.test(token[idx])) {
+          modDigits += token[idx];
+          idx++;
+        }
+        if (!modDigits) return {group: null, error: 'INVALID_FORMAT'};
+        group.modifier = parseInt(modSign + modDigits, 10);
+        group.modifierMode = 'distributed';
+
+        if (idx < token.length && (token[idx] === '+' || token[idx] === '-')) {
+          const limSign = token[idx];
+          idx++;
+          let limDigits = '';
+          while (idx < token.length && /[0-9]/.test(token[idx])) {
+            limDigits += token[idx];
+            idx++;
+          }
+          if (!limDigits) return {group: null, error: 'INVALID_FORMAT'};
+          const lim = this._parseLimit(modSign, limSign, limDigits);
+          if (lim.error) return {group: null, error: lim.error};
+          group.limit = lim.limit;
+          group.limitSign = lim.limitSign;
+        }
+      }
+
+      if (idx !== token.length) return {group: null, error: 'INVALID_FORMAT'};
+      return {group, error: null};
     },
 
     /**
@@ -763,6 +1026,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       return {limit: parseInt(limitVal, 10), limitSign: limSign};
     },
 
+    _rollDie(sides) {
+      return Math.floor(Math.random() * sides) + 1;
+    },
+
     /**
      * Roll dice and return raw results
      * @param {number} count - Number of dice
@@ -772,9 +1039,61 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     roll(count, sides) {
       const rolls = new Uint32Array(count);
       for (let i = 0; i < count; i++) {
-        rolls[i] = Math.floor(Math.random() * sides) + 1;
+        rolls[i] = this._rollDie(sides);
       }
       return rolls;
+    },
+
+    _applyExplosions(rollDetails, sides, explodeMode, explodeThreshold, rollFn) {
+      if (!explodeMode || explodeMode === 'none') return;
+      const threshold = explodeThreshold || sides;
+      for (const detail of rollDetails) {
+        let last = detail.chain[detail.chain.length - 1];
+        let loops = 0;
+        while (last >= threshold && loops < this.MAX_EXPLOSION_ITERATIONS) {
+          const next = rollFn(sides);
+          detail.chain.push(next);
+          last = next;
+          loops++;
+        }
+        detail.compound = explodeMode === 'compound';
+        detail.displayValue = detail.chain.reduce((s, v) => s + v, 0);
+      }
+    },
+
+    _applyFilter(rollDetails, filterAction, filterDirection, filterCount) {
+      if (!filterAction || !filterDirection || !filterCount) return;
+      if (filterCount >= rollDetails.length) return; // safety rule: preserve default all-kept state
+
+      const ranked = rollDetails
+        .map((detail, index) => ({detail, index}))
+        .sort((a, b) => {
+          if (a.detail.displayValue !== b.detail.displayValue) {
+            return filterDirection === 'high'
+              ? b.detail.displayValue - a.detail.displayValue
+              : a.detail.displayValue - b.detail.displayValue;
+          }
+          return a.index - b.index;
+        });
+
+      const marked = new Set();
+      if (filterAction === 'keep') {
+        for (let i = 0; i < filterCount; i++) {
+          marked.add(ranked[i].index);
+        }
+        rollDetails.forEach((d, i) => {
+          d.kept = marked.has(i);
+          d.isDropped = !d.kept;
+        });
+      } else {
+        for (let i = 0; i < filterCount; i++) {
+          marked.add(ranked[i].index);
+        }
+        rollDetails.forEach((d, i) => {
+          d.kept = !marked.has(i);
+          d.isDropped = !d.kept;
+        });
+      }
     },
 
     /**
@@ -785,10 +1104,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * @param {number|null} limit
      * @param {string|null} limitSign - '+' or '-'
      * @param {string} modifierMode - 'none'|'distributed'|'aggregated'
+     * @param {Object} advanced - {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
      * @returns {string}
      */
-    buildFormula(count, sides, modifier, limit, limitSign, modifierMode) {
+    buildFormula(count, sides, modifier, limit, limitSign, modifierMode, advanced = {}) {
       let s = `${count}d${sides}`;
+      const {
+        explodeMode = 'none',
+        explodeThreshold = null,
+        filterAction = null,
+        filterDirection = null,
+        filterCount = null
+      } = advanced;
+
+      if (explodeMode === 'compound') {
+        s += '!!';
+      } else if (explodeMode === 'standard') {
+        s += (explodeThreshold !== null && explodeThreshold !== sides) ? `!${explodeThreshold}` : '!';
+      }
+
+      if (filterAction && filterDirection && filterCount) {
+        const actionOp = filterAction === 'keep' ? '+' : '-';
+        const directionOp = filterDirection === 'high' ? '+' : '-';
+        s += `${actionOp}${directionOp}${filterCount}`;
+      }
+
       if (modifierMode !== 'none') {
         const modStr = modifier >= 0 ? `+${modifier}` : `${modifier}`;
         s += modifierMode === 'aggregated' ? ` ${modStr}` : modStr;
@@ -799,87 +1139,239 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       return s;
     },
 
+    _formatChain(detail) {
+      if (!detail.chain || detail.chain.length <= 1) return `${detail.raw}`;
+      if (detail.compound) return `${detail.displayValue}!!`;
+      return `[${detail.chain.map((v, idx) => (idx === detail.chain.length - 1 ? `${v}` : `${v}!`)).join('+')}]`;
+    },
+
     /**
-     * Compute roll result with modifier/limit applied.
-     * @param {Uint32Array} rawRolls - Raw die values
-     * @param {Object} opts - {count, sides, modifier, limit, limitSign, modifierMode}
-     * @returns {Object} Result object (mode-specific shape)
+     * Initialize roll details.
+     * @private
      */
-    computeResult(rawRolls, {count, sides, modifier, limit, limitSign, modifierMode}) {
-      const formula = DiceNotation.buildFormula(count, sides, modifier, limit, limitSign, modifierMode);
+    _initializeRollDetails(rawRolls, sides) {
+      return Array.from(rawRolls).map(raw => ({
+        raw,
+        chain: [raw],
+        displayValue: raw,
+        rawDisplay: `${raw}`,
+        resultDisplay: `${raw}`,
+        kept: true,
+        isDropped: false,
+        compound: false,
+        isCriticalSuccess: raw === sides,
+        isCriticalFailure: raw === 1
+      }));
+    },
 
-      if (modifierMode === 'none') {
-        const rolls = Array.from(rawRolls);
-        const total = rolls.reduce((s, v) => s + v, 0);
-        return {formula, mode: 'none', rolls, total, min: count, max: count * sides, sides};
-      }
+    /**
+     * Expand standard explosions into separate roll details.
+     * @private
+     */
+    _expandStandardExplosions(rollDetails, sides) {
+      const expanded = [];
+      rollDetails.forEach(d => {
+        if (!d.chain || d.chain.length <= 1) {
+          expanded.push({
+            raw: d.raw,
+            chain: [d.raw],
+            displayValue: d.raw,
+            rawDisplay: `${d.raw}`,
+            resultDisplay: `${d.raw}`,
+            kept: d.kept,
+            isDropped: d.isDropped,
+            compound: false,
+            isCriticalSuccess: d.raw === sides,
+            isCriticalFailure: d.raw === 1
+          });
+          return;
+        }
 
-      if (modifierMode === 'distributed') {
-        const dieResults = Array.from(rawRolls).map(raw => {
-          const modified = raw + modifier;
-          let result = modified;
-          let indicator = '';
-          if (limit !== null) {
-            if (limitSign === '-' && modified < limit) {
-              result = limit;
-              indicator = '*'; // raised to floor
-            } else if (limitSign === '+' && modified > limit) {
-              result = limit;
-              indicator = '^'; // lowered to ceiling
-            }
-          }
-          return {raw, result, indicator};
+        d.chain.forEach(v => {
+          expanded.push({
+            raw: v,
+            chain: d.chain.slice(),
+            displayValue: v,
+            rawDisplay: `${v}`,
+            resultDisplay: `${v}`,
+            kept: true,
+            isDropped: false,
+            compound: false,
+            isCriticalSuccess: v === sides,
+            isCriticalFailure: v === 1
+          });
         });
-        const total = dieResults.reduce((s, d) => s + d.result, 0);
+      });
+      return expanded;
+    },
 
-        // Range: absolute span (no limit applied) and effective span (with limit)
-        const rangeAbs = {min: count * (1 + modifier), max: count * (sides + modifier)};
-        let rangeLimit = null;
-        if (limit !== null) {
-          if (limitSign === '-') {
-            rangeLimit = {min: count * Math.max(limit, 1 + modifier), max: count * (sides + modifier)};
-          } else {
-            rangeLimit = {min: count * (1 + modifier), max: count * Math.min(limit, sides + modifier)};
-          }
-          // Discard rangeLimit when it doesn't actually constrain (equals rangeAbs)
-          if (rangeLimit.min === rangeAbs.min && rangeLimit.max === rangeAbs.max) {
-            rangeLimit = null;
+    /**
+     * Apply display formatting to roll details.
+     * @private
+     */
+    _applyDisplayFormatting(rollDetails, explodeMode) {
+      rollDetails.forEach(d => {
+        if (explodeMode === 'compound') {
+          d.rawDisplay = this._formatChain(d);
+          d.resultDisplay = d.chain.length > 1 ? `${d.displayValue}!!` : `${d.displayValue}`;
+        } else {
+          d.rawDisplay = `${d.raw}`;
+          d.resultDisplay = `${d.displayValue}`;
+        }
+      });
+    },
+
+    /**
+     * Compute result for distributed modifier mode.
+     * @private
+     */
+    _computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
+      const effectiveCount = keptDetails.length;
+      const dieResults = rollDetails.map(d => {
+        const modified = d.displayValue + modifier;
+        let result = modified;
+        let indicator = '';
+        if (d.kept && limit !== null) {
+          if (limitSign === '-' && modified < limit) {
+            result = limit;
+            indicator = '*';
+          } else if (limitSign === '+' && modified > limit) {
+            result = limit;
+            indicator = '^';
           }
         }
-        return {formula, mode: 'distributed', dieResults, total, modifier, rangeAbs, rangeLimit, sides, limit, limitSign};
-      }
+        return {
+          raw: d.raw,
+          rawDisplay: d.rawDisplay,
+          result: d.kept ? result : d.displayValue,
+          resultDisplay: d.kept
+            ? (d.compound && d.chain.length > 1 ? `${result}!!` : `${result}`)
+            : d.resultDisplay,
+          indicator,
+          kept: d.kept,
+          isDropped: d.isDropped,
+          chain: d.chain.slice(),
+          compound: d.compound,
+          isCriticalSuccess: d.isCriticalSuccess,
+          isCriticalFailure: d.isCriticalFailure
+        };
+      });
 
-      // aggregated mode
-      const rolls = Array.from(rawRolls);
-      const rawSum = rolls.reduce((s, v) => s + v, 0);
+      const total = dieResults.reduce((s, d) => s + (d.kept ? d.result : 0), 0);
+
+      const rangeRaw = {min: effectiveCount, max: effectiveCount * sides};
+      const perDieMin = 1 + modifier;
+      const perDieMax = sides + modifier;
+      const rangeMod = {min: effectiveCount * perDieMin, max: effectiveCount * perDieMax};
+      let limitMin = perDieMin;
+      let limitMax = perDieMax;
+      if (limit !== null) {
+        if (limitSign === '-') {
+          limitMin = Math.max(perDieMin, limit);
+          limitMax = Math.max(perDieMax, limit);
+        } else {
+          limitMin = Math.min(perDieMin, limit);
+          limitMax = Math.min(perDieMax, limit);
+        }
+      }
+      const rangeLimit = limit !== null
+        ? {min: effectiveCount * limitMin, max: effectiveCount * limitMax}
+        : null;
+
+      return {
+        formula, mode: 'distributed', dieResults, rollDetails, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
+        limit, limitSign, hasClamp: limit !== null
+      };
+    },
+
+    /**
+     * Compute result for aggregated modifier mode.
+     * @private
+     */
+    _computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
+      const effectiveCount = keptDetails.length;
+      const rolls = rollDetails.map(d => d.raw);
+      const rawSum = keptDetails.reduce((s, d) => s + d.displayValue, 0);
       const modifiedSum = rawSum + modifier;
       let total = modifiedSum;
       let indicator = '';
       if (limit !== null) {
         if (limitSign === '-' && modifiedSum < limit) {
           total = limit;
-          indicator = '*'; // raised to floor
+          indicator = '*';
         } else if (limitSign === '+' && modifiedSum > limit) {
           total = limit;
-          indicator = '^'; // lowered to ceiling
+          indicator = '^';
         }
       }
-      const rawMin = count;
-      const rawMax = count * sides;
-      const rangeAbs = {min: rawMin + modifier, max: rawMax + modifier};
-      let rangeLimit = null;
+      const rawMin = effectiveCount;
+      const rawMax = effectiveCount * sides;
+      const rangeRaw = {min: rawMin, max: rawMax};
+      const modifiedMin = rawMin + modifier;
+      const modifiedMax = rawMax + modifier;
+      const rangeMod = {min: modifiedMin, max: modifiedMax};
+      let limitMin = modifiedMin;
+      let limitMax = modifiedMax;
       if (limit !== null) {
         if (limitSign === '-') {
-          rangeLimit = {min: Math.max(limit, rawMin + modifier), max: rawMax + modifier};
+          limitMin = Math.max(modifiedMin, limit);
+          limitMax = Math.max(modifiedMax, limit);
         } else {
-          rangeLimit = {min: rawMin + modifier, max: Math.min(limit, rawMax + modifier)};
-        }
-        // Discard rangeLimit when it doesn't actually constrain (equals rangeAbs)
-        if (rangeLimit.min === rangeAbs.min && rangeLimit.max === rangeAbs.max) {
-          rangeLimit = null;
+          limitMin = Math.min(modifiedMin, limit);
+          limitMax = Math.min(modifiedMax, limit);
         }
       }
-      return {formula, mode: 'aggregated', rolls, rawSum, modifiedSum, total, indicator, modifier, rangeAbs, rangeLimit, sides};
+      const rangeLimit = limit !== null ? {min: limitMin, max: limitMax} : null;
+      return {
+        formula, mode: 'aggregated', rolls, rollDetails, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, sides,
+        limit, limitSign, hasClamp: limit !== null
+      };
+    },
+
+    /**
+     * Compute roll result with modifier/limit applied.
+     * @param {Uint32Array|number[]} rawRolls - Raw die values
+     * @param {Object} opts - collection options
+     * @param {Function|null} nextRollFn - Optional deterministic roller for explosions
+     * @returns {Object} Result object
+     */
+    computeResult(rawRolls, {
+      count, sides, modifier, limit, limitSign, modifierMode,
+      explodeMode = 'none', explodeThreshold = null,
+      filterAction = null, filterDirection = null, filterCount = null
+    }, nextRollFn = null) {
+      const formula = DiceNotation.buildFormula(
+        count, sides, modifier, limit, limitSign, modifierMode,
+        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
+      );
+
+      const rollFn = typeof nextRollFn === 'function' ? nextRollFn : (s) => DiceNotation._rollDie(s);
+      let rollDetails = this._initializeRollDetails(rawRolls, sides);
+
+      this._applyExplosions(rollDetails, sides, explodeMode, explodeThreshold, rollFn);
+      if (explodeMode === 'standard') {
+        rollDetails = this._expandStandardExplosions(rollDetails, sides);
+      }
+
+      this._applyFilter(rollDetails, filterAction, filterDirection, filterCount);
+      this._applyDisplayFormatting(rollDetails, explodeMode);
+
+      const keptDetails = rollDetails.filter(d => d.kept);
+      const effectiveCount = keptDetails.length;
+
+      if (modifierMode === 'none') {
+        const rolls = rollDetails.map(d => d.raw);
+        const total = keptDetails.reduce((s, d) => s + d.displayValue, 0);
+        const min = effectiveCount;
+        const max = effectiveCount * sides;
+        return {formula, mode: 'none', rolls, rollDetails, total, min, max, sides};
+      }
+
+      if (modifierMode === 'distributed') {
+        return this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
+      }
+
+      return this._computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
     },
 
     /**
@@ -893,7 +1385,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
         'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`,
         'INVALID_OPERATOR_FOR_LIMIT': 'Invalid operator for limit. Limit sign must match modifier sign (e.g., 3d6-5-1 or 3d6+5+10).',
-        'MODIFIER_TOO_LARGE': `Modifier or limit too large! Maximum allowed is ${DiceApp.MAX_MODIFIER.toLocaleString()}.`
+        'MODIFIER_TOO_LARGE': `Modifier or limit too large! Maximum allowed is ${DiceApp.MAX_MODIFIER.toLocaleString()}.`,
+        'INVALID_EXPLODE_THRESHOLD': 'Invalid explosion threshold. Use !Y where Y is at least 2 and no greater than die sides.'
       };
       return messages[errorCode] || 'Unknown error';
     }
@@ -1008,8 +1501,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       cursorPosition: 0,
       mode: 'auto', // 'auto', 'keyboard', or 'keypad'
       resolvedMode: null, // Actual mode after resolution: 'keyboard' or 'keypad'
+      fitToWidth: false,
       rollResults: [],
-      errorMessage: ''
+      errorMessage: '',
+      isRolling: false
     },
 
     // DOM element cache
@@ -1070,9 +1565,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Update the entire UI from Model
        */
       renderAll() {
+        this.syncLayoutClasses();
         this.renderMode();
         this.renderResults();
         this.renderMenu();
+      },
+
+      syncLayoutClasses() {
+        document.body.classList.toggle('fit-to-width', DiceApp.state.fitToWidth);
       },
 
       /**
@@ -1091,20 +1591,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       renderResults() {
         const {nodes, state} = DiceApp;
+        const stripExplodeMarkers = (value) => `${value}`.replace(/!/g, '');
+        const isExploded = (die) => Array.isArray(die?.chain) && die.chain.length > 1;
 
         /**
-         * Build a range string. Shows both Limit and Abs when a limit exists,
-         * otherwise just the absolute range.
-         * @param {{min,max}} rangeAbs
+         * Build a range string. Shows calculation-vs-absolute ranges when available.
+         * @param {{min,max}} rangeRaw
+         * @param {{min,max}|null} rangeMod
          * @param {{min,max}|null} rangeLimit
          * @returns {string}
          */
-        const buildRangeStr = (rangeAbs, rangeLimit) => {
+        const buildRangeStr = (rangeRaw, rangeMod, rangeLimit) => {
+          const modOrRaw = rangeMod || rangeRaw;
           if (rangeLimit) {
             return `${rangeLimit.min}–${rangeLimit.max} <span class="range-label">(Limit)</span>` +
-              `&nbsp;&nbsp;${rangeAbs.min}–${rangeAbs.max} <span class="range-label">(Abs)</span>`;
+              `&nbsp;&nbsp;${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
+              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Abs)</span>`;
           }
-          return `${rangeAbs.min}–${rangeAbs.max}`;
+          if (modOrRaw.min !== rangeRaw.min || modOrRaw.max !== rangeRaw.max) {
+            return `${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
+              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Abs)</span>`;
+          }
+          return `${rangeRaw.min}–${rangeRaw.max}`;
         };
 
         /**
@@ -1114,17 +1622,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
          * @param {number} sides
          * @returns {string}
          */
-                    const rollValSpans = (rolls, sides) => {
-              const w = String(sides).length;
-              return rolls.map((v) =>
-                `<span class="roll-chunk">` +
-                `<span class="roll-val" style="min-width:${w}ch">${v}</span>` +
-                `</span>`
-              ).join('');
-            };
+        const rollValSpans = (rolls, sides) => {
+          const w = String(sides).length;
+          return rolls.map((v) =>
+            `<span class="roll-chunk">` +
+            `<span class="roll-val" style="min-width:${w}ch">${v}</span>` +
+            `</span>`
+          ).join('');
+        };
 
         let newHTML = '';
-        if (state.errorMessage) {
+        if (state.isRolling) {
+          newHTML = `<div class="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span>Rolling...</span></div>`;
+        } else if (state.errorMessage) {
           newHTML = `<div class="error">${state.errorMessage}</div>`;
         } else {
           newHTML = state.rollResults.map(r => {
@@ -1135,17 +1645,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
              * @param {number} val - Displayed numeric value
              * @param {string} indicator - '' | '*' | '^'
              * @param {number} minWidth - ch width for alignment
+             * @param extraClassName
+             * @param chipClassName
              * @returns {string}
              */
-            const gameSpan = (val, indicator, minWidth) => {
-              const inner = `<span class="die-game-val" style="min-width:${minWidth}ch">${val}</span>`;
+            const gameSpan = (val, indicator, minWidth, extraClassName = '', chipClassName = '') => {
+              const extraClass = extraClassName ? ` ${extraClassName}` : '';
+              const cleanVal = stripExplodeMarkers(val);
+              const inner = `<span class="die-game-val${extraClass}" style="min-width:${minWidth}ch">${cleanVal}</span>`;
+              const classes = ['die-game'];
+              if (indicator === '*') classes.push('die-clamp-floor');
+              if (indicator === '^') classes.push('die-clamp-ceiling');
+              if (chipClassName) classes.push(chipClassName);
               if (indicator === '*') {
-                return `<span class="die-game die-clamp-floor">${inner}</span>`;
+                return `<span class="${classes.join(' ')}">${inner}</span>`;
               }
               if (indicator === '^') {
-                return `<span class="die-game die-clamp-ceiling">${inner}</span>`;
+                return `<span class="${classes.join(' ')}">${inner}</span>`;
               }
-              return `<span class="die-game">${inner}</span>`;
+              return `<span class="${classes.join(' ')}">${inner}</span>`;
             };
 
             if (r.mode === 'distributed') {
@@ -1154,19 +1672,38 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // Theoretical max game-result width (digits only — indicator is now text-decoration).
               // A floor limit (-) is the true minimum displayed value (result ≥ limit by definition).
               // A ceiling limit (+) is the true maximum displayed value (result ≤ limit by definition).
-              const theorMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
-              const theorMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
-              const maxGameWidth = Math.max(String(theorMinGame).length, String(theorMaxGame).length);
-              // Theoretical max raw-value width (always 1..sides)
-              const maxRawWidth = String(r.sides).length;
+              const theoreticalMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
+              const theoreticalMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
+              const hasCompoundExplode = r.dieResults.some(d => d.compound);
+              const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
+              const maxGameWidth = hasCompoundExplode
+                ? compoundWidth
+                : Math.max(String(theoreticalMinGame).length, String(theoreticalMaxGame).length);
+              const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
 
-              const rollsDisplay = r.dieResults.map(d =>
-                `<span class="die-cell" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${d.raw})">` +
-                gameSpan(d.result, d.indicator, maxGameWidth) +
-                `<span class="die-raw">=[<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${d.raw}</span>${modStr}]</span>` +
+              const rollsDisplay = r.dieResults.map(d => {
+                const criticalClass = d.isCriticalSuccess
+                  ? 'die-critical-success'
+                  : d.isCriticalFailure
+                    ? 'die-critical-failure'
+                    : '';
+                const droppedClass = d.isDropped ? 'die-dropped' : '';
+                const exploded = isExploded(d);
+                const isCompoundExplode = d.compound === true;
+                const chipGlowClass = exploded
+                  ? (isCompoundExplode ? 'die-explode-compound' : 'die-explode-standard')
+                  : '';
+                const rawText = stripExplodeMarkers(d.rawDisplay || `${d.raw}`);
+                const rawValue = isCompoundExplode && exploded
+                  ? `<span class="die-compound-val">${rawText}</span>`
+                  : rawText;
+                const gameText = stripExplodeMarkers(d.resultDisplay || `${d.result}`);
+                return `<span class="die-cell ${droppedClass}" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${rawText})">` +
+                gameSpan(gameText, d.indicator, maxGameWidth, criticalClass, chipGlowClass) +
+                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${modStr}</span>` +
                 `</span>`
-              ).join('');
-              const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
+              }).join('');
+              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
@@ -1184,7 +1721,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
-              const rangeStr = buildRangeStr(r.rangeAbs, r.rangeLimit);
+              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
@@ -1196,11 +1733,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       `;
             } else {
               // mode === 'none' (basic roll, no modifier)
+              const rollsDisplay = r.rollDetails
+                ? r.rollDetails.map(d => {
+                  const criticalClass = d.isCriticalSuccess
+                    ? 'die-critical-success'
+                    : d.isCriticalFailure
+                      ? 'die-critical-failure'
+                      : '';
+                  const droppedClass = d.isDropped ? 'die-dropped' : '';
+                  const exploded = isExploded(d);
+                  const isCompoundExplode = d.compound === true;
+                  const glowClass = exploded
+                    ? (isCompoundExplode ? 'die-explode-compound' : 'die-explode-standard')
+                    : '';
+                  const chipWidth = isCompoundExplode
+                    ? String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length
+                    : String(r.sides).length;
+                  const display = stripExplodeMarkers(d.resultDisplay || `${d.displayValue}`);
+                  return `<span class="roll-chunk ${droppedClass} ${glowClass}">` +
+                    `<span class="roll-val ${criticalClass}" style="min-width:${chipWidth}ch">${display}</span>` +
+                    `</span>`;
+                }).join('')
+                : rollValSpans(r.rolls, r.sides);
               return `
         <div class="result-item">
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
+          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
@@ -1211,6 +1770,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         // Only update DOM if content has changed to avoid "jumping" on every keystroke
         if (nodes.results.innerHTML !== newHTML) {
           nodes.results.innerHTML = newHTML;
+        }
+
+        // Disable roll and clear buttons while rolling
+        if (nodes.rollBtn) {
+          nodes.rollBtn.disabled = state.isRolling;
+        }
+        if (nodes.clearBtn) {
+          nodes.clearBtn.disabled = state.isRolling;
         }
       },
 
@@ -1224,9 +1791,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const menuItems = nodes.menu.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
           const mode = item.dataset.mode;
+          const setting = item.dataset.setting;
           const check = item.querySelector('.menu-check');
 
-          if (mode === state.mode) {
+          const isActive = (mode && mode === state.mode) ||
+            (setting === 'fit-to-width' && state.fitToWidth);
+
+          if (isActive) {
             item.classList.add('active');
             if (check) check.style.display = 'block';
           } else {
@@ -1270,30 +1841,61 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       roll() {
         const {state, utils, ui} = DiceApp;
+
+        if (state.isRolling) {
+          return;
+        }
+
         const notation = state.currentValue;
+
         const {collections: parsed, error} = DiceNotation.parse(notation);
 
         if (!parsed) {
           state.errorMessage = DiceNotation.getErrorMessage(error);
           state.rollResults = [];
+          state.isRolling = false;
           ui.renderAll();
           return;
         }
 
-        state.errorMessage = '';
-        state.rollResults = [];
+        const computeAndRender = () => {
+          state.errorMessage = '';
+          state.rollResults = [];
 
-        for (const coll of parsed) {
-          const {batchCount, count, sides, modifier, limit, limitSign, modifierMode} = coll;
-          for (let b = 0; b < batchCount; b++) {
-            const rawRolls = DiceNotation.roll(count, sides);
-            const result = DiceNotation.computeResult(rawRolls, {count, sides, modifier, limit, limitSign, modifierMode});
-            state.rollResults.push(result);
+          for (const coll of parsed) {
+            const {
+              batchCount, count, sides, modifier, limit, limitSign, modifierMode,
+              explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
+            } = coll;
+            for (let b = 0; b < batchCount; b++) {
+              const rawRolls = DiceNotation.roll(count, sides);
+              const result = DiceNotation.computeResult(rawRolls, {
+                count, sides, modifier, limit, limitSign, modifierMode,
+                explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
+              });
+              state.rollResults.push(result);
+            }
           }
+
+          utils.setQueryParam('dice', notation);
+          setTimeout(() => {
+            state.isRolling = false;
+            ui.renderAll();
+          }, 0);
+        };
+
+        const estimatedDiceCount = parsed.reduce((sum, coll) => sum + (coll.batchCount * coll.count), 0);
+
+        if (estimatedDiceCount >= 5000) {
+          state.errorMessage = '';
+          state.rollResults = [];
+          state.isRolling = true;
+          ui.renderAll();
+          setTimeout(computeAndRender, 0);
+          return;
         }
 
-        utils.setQueryParam('dice', notation);
-        ui.renderAll();
+        computeAndRender();
       },
 
       /**
@@ -1301,6 +1903,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        */
       clear() {
         const {state, utils, ui} = DiceApp;
+
+        if (state.isRolling) {
+          return;
+        }
+
         state.currentValue = '';
         state.cursorPosition = 0;
         state.rollResults = [];
@@ -1354,6 +1961,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             state.resolvedMode = 'keyboard';
           }
         }
+      },
+
+      toggleFitToWidth() {
+        const {state, ui} = DiceApp;
+        state.fitToWidth = !state.fitToWidth;
+        ui.renderAll();
+        ui.closeMenu();
       }
     },
 
@@ -1374,17 +1988,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           e.target.setSelectionRange(sanitizedBeforeCursor.length, sanitizedBeforeCursor.length);
         }
         DiceApp.actions.updateInput(e.target.value, e.target.selectionStart);
-      },
-
-      /**
-       * Prevent textarea newlines; Enter should roll instead
-       * @param {KeyboardEvent} e
-       */
-      onInputKeyDown(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          DiceApp.actions.roll();
-        }
       },
 
       /**
@@ -1474,16 +2077,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Handle keyboard input globally (works in both modes)
        */
       onKeyDownGlobal(e) {
-        const {ui, actions} = DiceApp;
+        const {ui, actions, state} = DiceApp;
 
         // Global shortcuts (work in both modes)
         if (e.key === 'Escape') {
-          actions.clear();
+          if (!state.isRolling) {
+            actions.clear();
+          }
           return;
         }
 
         if (e.key === 'Enter') {
-          actions.roll();
+          e.preventDefault(); // Prevent textarea newlines; Enter should roll instead
+          if (!state.isRolling) {
+            actions.roll();
+          }
           return;
         }
 
@@ -1496,7 +2104,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const mapped = this.keyMap[e.key];
           if (mapped) {
             e.preventDefault();
-            mapped();
+            if (!state.isRolling) {
+              mapped();
+            }
           }
         }
       },
@@ -1509,6 +2119,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (!menuItem) return;
 
         const mode = menuItem.dataset.mode;
+        const setting = menuItem.dataset.setting;
+        if (setting === 'fit-to-width') {
+          DiceApp.actions.toggleFitToWidth();
+          return;
+        }
         DiceApp.actions.setMode(mode);
       },
 
@@ -1809,6 +2424,212 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Parse exploding notation - !",
+            test: () => {
+              const result = DiceNotation.parse("2d6!");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'standard' && c[0].explodeThreshold === 6;
+            }
+          },
+          {
+            name: "Parse exploding notation - !!",
+            test: () => {
+              const result = DiceNotation.parse("2d6!!");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'compound' && c[0].explodeThreshold === 6;
+            }
+          },
+          {
+            name: "Parse threshold exploding notation - !Y",
+            test: () => {
+              const result = DiceNotation.parse("2d10!8");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'standard' && c[0].explodeThreshold === 8;
+            }
+          },
+          {
+            name: "Reject invalid threshold exploding notation - below minimum",
+            test: () => {
+              const result = DiceNotation.parse("2d10!1");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
+            }
+          },
+          {
+            name: "Reject invalid threshold exploding notation - above sides",
+            test: () => {
+              const result = DiceNotation.parse("2d10!11");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
+            }
+          },
+          {
+            name: "Parse keep high filter - ++",
+            test: () => {
+              const result = DiceNotation.parse("2d20++1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'keep' && c[0].filterDirection === 'high' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse keep low filter - +-",
+            test: () => {
+              const result = DiceNotation.parse("2d20+-1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'keep' && c[0].filterDirection === 'low' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse drop high filter - -+",
+            test: () => {
+              const result = DiceNotation.parse("4d6-+1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'drop' && c[0].filterDirection === 'high' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Parse drop low filter - --",
+            test: () => {
+              const result = DiceNotation.parse("4d6--1");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].filterAction === 'drop' && c[0].filterDirection === 'low' && c[0].filterCount === 1;
+            }
+          },
+          {
+            name: "Reject filter count zero",
+            test: () => {
+              const result = DiceNotation.parse("4d6--0");
+              return result.collections === null && result.error === 'INVALID_FORMAT';
+            }
+          },
+          {
+            name: "computeResult - standard explosion adds separate bonus die entries",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 2], {
+                count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 6
+              }, () => 4);
+              return result.total === 12 &&
+                result.rollDetails.length === 3 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[0].chain[0] === 6 &&
+                result.rollDetails[0].chain[1] === 4 &&
+                result.rollDetails[0].displayValue === 6 &&
+                result.rollDetails[1].displayValue === 4 &&
+                result.rollDetails[2].displayValue === 2 &&
+                result.min === 3 &&
+                result.max === 18;
+            }
+          },
+          {
+            name: "computeResult - compounding explosion keeps a single compounded die entry",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 2], {
+                count: 2, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'compound', explodeThreshold: 6
+              }, () => 4);
+              return result.total === 12 &&
+                result.rollDetails.length === 2 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[0].compound === true &&
+                result.rollDetails[0].displayValue === 10 &&
+                result.rollDetails[1].displayValue === 2;
+            }
+          },
+          {
+            name: "computeResult - threshold explosion uses >= Y",
+            test: () => {
+              const result = DiceNotation.computeResult([8, 7], {
+                count: 2, sides: 10, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 8
+              }, () => 5);
+              return result.total === 20 &&
+                result.rollDetails.length === 3 &&
+                result.rollDetails[0].chain.length === 2 &&
+                result.rollDetails[1].displayValue === 5 &&
+                result.rollDetails[2].chain.length === 1;
+            }
+          },
+          {
+            name: "computeResult - explosion recursion cap",
+            test: () => {
+              const result = DiceNotation.computeResult([6], {
+                count: 1, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                explodeMode: 'standard', explodeThreshold: 6
+              }, () => 6);
+              return result.rollDetails[0].chain.length === 21 && result.total === 126;
+            }
+          },
+          {
+            name: "computeResult - keep high filters lowest dice",
+            test: () => {
+              const result = DiceNotation.computeResult([18, 4], {
+                count: 2, sides: 20, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'high', filterCount: 1
+              });
+              return result.total === 18 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].kept === false;
+            }
+          },
+          {
+            name: "computeResult - drop low filters lowest dice",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5, 2, 1], {
+                count: 4, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'drop', filterDirection: 'low', filterCount: 1
+              });
+              return result.total === 13 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].kept === true &&
+                result.rollDetails[2].kept === true &&
+                result.rollDetails[3].kept === false;
+            }
+          },
+          {
+            name: "computeResult - oversized filter defaults to keep all",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5, 2, 1], {
+                count: 4, sides: 6, modifier: 0, limit: null, limitSign: null, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'high', filterCount: 4
+              });
+              return result.total === 14 && result.rollDetails.every(d => d.kept === true);
+            }
+          },
+          {
+            name: "computeResult - critical detection nat max and nat 1",
+            test: () => {
+              const result = DiceNotation.computeResult([20, 1], {
+                count: 2, sides: 20, modifier: 0, limit: null, limitSign: null, modifierMode: 'none'
+              });
+              return result.rollDetails[0].isCriticalSuccess === true &&
+                result.rollDetails[1].isCriticalFailure === true;
+            }
+          },
+          {
+            name: "computeResult - precedence explode then filter then modifier",
+            test: () => {
+              const result = DiceNotation.computeResult([6, 5], {
+                count: 2, sides: 6, modifier: 1, limit: null, limitSign: null, modifierMode: 'distributed',
+                explodeMode: 'standard', explodeThreshold: 6,
+                filterAction: 'keep', filterDirection: 'high', filterCount: 1
+              }, () => 4);
+              return result.total === 7 &&
+                result.rollDetails.length === 3 &&
+                result.rollDetails[0].displayValue === 6 &&
+                result.rollDetails[0].kept === true &&
+                result.rollDetails[1].displayValue === 4 &&
+                result.rollDetails[1].kept === false &&
+                result.rollDetails[2].displayValue === 5 &&
+                result.rollDetails[2].kept === false;
+            }
+          },
+          {
             name: "computeResult - distributed penalty with floor (indicator *)",
             test: () => {
               // 3d4-3-1: rolls [4, 1, 2], floor=1
@@ -1877,25 +2698,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "computeResult - aggregated non-constraining floor gives null rangeLimit",
+            name: "computeResult - aggregated non-constraining floor preserves distinct Raw/Mod/Limit ranges",
             test: () => {
-              // 10d12 -1-4: floor=4 below min achievable=9 → limit doesn't constrain → rangeLimit=null
+              // 10d12 -1-4: raw=10..120, mod=9..119, limit=9..119 (non-constraining floor)
               const result = DiceNotation.computeResult([6, 6, 6, 6, 6, 6, 6, 6, 6, 6], {
                 count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
               });
-              return result.rangeAbs.min === 9 && result.rangeAbs.max === 119 &&
-                result.rangeLimit === null;
+              return result.rangeRaw.min === 10 && result.rangeRaw.max === 120 &&
+                result.rangeMod.min === 9 && result.rangeMod.max === 119 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 9 && result.rangeLimit.max === 119;
             }
           },
           {
-            name: "computeResult - distributed non-constraining floor gives null rangeLimit",
+            name: "computeResult - distributed non-constraining floor keeps Mod and Limit ranges",
             test: () => {
-              // 3d6-0 (floor=0, modifier=0): rangeAbs = {3,18}, floor=0 < min=3 → no constraint
+              // 3d6-0 (floor=0, modifier=0): raw=3..18, mod=3..18, limit=3..18
               const result = DiceNotation.computeResult([3, 3, 3], {
                 count: 3, sides: 6, modifier: 0, limit: 0, limitSign: '-', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 3 && result.rangeAbs.max === 18 &&
-                result.rangeLimit === null;
+              return result.rangeRaw.min === 3 && result.rangeRaw.max === 18 &&
+                result.rangeMod.min === 3 && result.rangeMod.max === 18 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 3 && result.rangeLimit.max === 18;
             }
           },
           {
@@ -1911,52 +2736,172 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "computeResult - aggregated rangeAbs and rangeLimit",
+            name: "computeResult - aggregated exposes Raw/Mod/Limit ranges",
             test: () => {
-              // 2d6 +3+12: rawMin=2, rawMax=12; modMin=5, modMax=15; ceiling=12
+              // 2d6 +3+12: raw=2..12, mod=5..15, limit=5..12
               const result = DiceNotation.computeResult([3, 3], {
                 count: 2, sides: 6, modifier: 3, limit: 12, limitSign: '+', modifierMode: 'aggregated'
               });
-              return result.rangeAbs.min === 5 && result.rangeAbs.max === 15 &&
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
+                result.rangeMod.min === 5 && result.rangeMod.max === 15 &&
                 result.rangeLimit !== null &&
-                result.rangeLimit.min === 5 && result.rangeLimit.max === 12;
+                result.rangeLimit.min === 5 && result.rangeLimit.max === 12 &&
+                result.limit === 12 && result.limitSign === '+' && result.hasClamp === true;
             }
           },
           {
-            name: "computeResult - distributed penalty, rangeAbs and rangeLimit",
+            name: "computeResult - distributed penalty exposes Raw/Mod/Limit ranges",
             test: () => {
-              // 3d4-3-1 (floor=1): rangeAbs = 3*(-2) to 3*1 = -6 to 3
-              // rangeLimit = 3*max(1,-2) to 3*1 = 3 to 3
+              // 3d4-3-1: raw=3..12, mod=-6..3, limit=3..3
               const result = DiceNotation.computeResult([4, 1, 2], {
                 count: 3, sides: 4, modifier: -3, limit: 1, limitSign: '-', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === -6 && result.rangeAbs.max === 3 &&
+              return result.rangeRaw.min === 3 && result.rangeRaw.max === 12 &&
+                result.rangeMod.min === -6 && result.rangeMod.max === 3 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 3 && result.rangeLimit.max === 3;
             }
           },
           {
-            name: "computeResult - distributed bonus, rangeAbs and rangeLimit",
+            name: "computeResult - distributed bonus exposes Raw/Mod/Limit ranges",
             test: () => {
-              // 2d4+5+7 (ceiling=7): rangeAbs = 2*6 to 2*9 = 12 to 18
-              // rangeLimit = 2*6 to 2*min(7,9) = 12 to 14
+              // 2d4+5+7: raw=2..8, mod=12..18, limit=12..14
               const result = DiceNotation.computeResult([3, 4], {
                 count: 2, sides: 4, modifier: 5, limit: 7, limitSign: '+', modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === 12 && result.rangeAbs.max === 18 &&
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 8 &&
+                result.rangeMod.min === 12 && result.rangeMod.max === 18 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 12 && result.rangeLimit.max === 14;
             }
           },
           {
-            name: "computeResult - distributed no limit, rangeAbs only",
+            name: "computeResult - distributed modifier-only exposes Raw and Mod ranges",
             test: () => {
-              // 2d6-2 (no limit): rangeAbs = 2*(1-2) to 2*(6-2) = -2 to 8
+              // 2d6-2 (no explicit limit): raw=2..12, mod=-2..8, no limit range
               const result = DiceNotation.computeResult([4, 3], {
                 count: 2, sides: 6, modifier: -2, limit: null, limitSign: null, modifierMode: 'distributed'
               });
-              return result.rangeAbs.min === -2 && result.rangeAbs.max === 8 &&
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
+                result.rangeMod.min === -2 && result.rangeMod.max === 8 &&
+                result.rangeLimit === null &&
+                result.limit === null && result.limitSign === null && result.hasClamp === false;
+            }
+          },
+          {
+            name: "computeResult - distributed +modifier no explicit limit has Raw/Mod only",
+            test: () => {
+              // 10d100+10: raw=10..1000, mod=110..1100, no limit range
+              const result = DiceNotation.computeResult([50, 50, 50, 50, 50, 50, 50, 50, 50, 50], {
+                count: 10, sides: 100, modifier: 10, limit: null, limitSign: null, modifierMode: 'distributed'
+              });
+              return result.rangeRaw.min === 10 && result.rangeRaw.max === 1000 &&
+                result.rangeMod.min === 110 && result.rangeMod.max === 1100 &&
                 result.rangeLimit === null;
+            }
+          },
+          {
+            name: "computeResult - distributed +modifier+ceiling keeps Raw/Mod and clamps Limit",
+            test: () => {
+              // 10d100+10+101: raw=10..1000, mod=110..1100, limit=110..1010
+              const result = DiceNotation.computeResult([50, 50, 50, 50, 50, 50, 50, 50, 50, 50], {
+                count: 10, sides: 100, modifier: 10, limit: 101, limitSign: '+', modifierMode: 'distributed'
+              });
+              return result.rangeRaw.min === 10 && result.rangeRaw.max === 1000 &&
+                result.rangeMod.min === 110 && result.rangeMod.max === 1100 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 110 && result.rangeLimit.max === 1010;
+            }
+          },
+          {
+            name: "computeResult - distributed floor above modified max collapses complete rangeLimit",
+            test: () => {
+              // 2d4-1-10: per-die modified range is 0..3, floor=10 forces each die to 10 => total 20..20
+              const result = DiceNotation.computeResult([4, 1], {
+                count: 2, sides: 4, modifier: -1, limit: 10, limitSign: '-', modifierMode: 'distributed'
+              });
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 8 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 20 && result.rangeLimit.max === 20;
+            }
+          },
+          {
+            name: "computeResult - aggregated ceiling below modified min collapses complete rangeLimit",
+            test: () => {
+              // 2d6 +3+1: modified range is 5..15, ceiling=1 forces total to 1..1
+              const result = DiceNotation.computeResult([6, 6], {
+                count: 2, sides: 6, modifier: 3, limit: 1, limitSign: '+', modifierMode: 'aggregated'
+              });
+              return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
+                result.rangeLimit !== null &&
+                result.rangeLimit.min === 1 && result.rangeLimit.max === 1;
+            }
+          },
+          {
+            name: "renderResults - modifier-only range uses Mod and Abs labels (not Limit)",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d6-2',
+                mode: 'distributed',
+                dieResults: [{raw: 4, result: 2, indicator: ''}, {raw: 3, result: 1, indicator: ''}],
+                total: 3,
+                modifier: -2,
+                rangeRaw: {min: 2, max: 12},
+                rangeMod: {min: -2, max: 8},
+                rangeLimit: null,
+                sides: 6,
+                limit: null,
+                limitSign: null,
+                hasClamp: false
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const html = DiceApp.nodes.results.innerHTML;
+              return html.includes('(Mod)') && html.includes('(Abs)') && !html.includes('(Limit)');
+            }
+          },
+          {
+            name: "renderResults - dropped dice are strike-through",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d20++1',
+                mode: 'none',
+                rolls: [18, 4],
+                rollDetails: [
+                  {raw: 18, displayValue: 18, resultDisplay: '18', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 4, displayValue: 4, resultDisplay: '4', kept: false, isDropped: true, isCriticalSuccess: false, isCriticalFailure: false}
+                ],
+                total: 18,
+                min: 1,
+                max: 20,
+                sides: 20
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const html = DiceApp.nodes.results.innerHTML;
+              return html.includes('die-dropped');
+            }
+          },
+          {
+            name: "renderResults - critical nat max and nat 1 classes",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d20',
+                mode: 'none',
+                rolls: [20, 1],
+                rollDetails: [
+                  {raw: 20, displayValue: 20, resultDisplay: '20', kept: true, isDropped: false, isCriticalSuccess: true, isCriticalFailure: false},
+                  {raw: 1, displayValue: 1, resultDisplay: '1', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: true}
+                ],
+                total: 21,
+                min: 2,
+                max: 40,
+                sides: 20
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const html = DiceApp.nodes.results.innerHTML;
+              return html.includes('die-critical-success') && html.includes('die-critical-failure');
             }
           },
           {
@@ -2019,6 +2964,61 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Roll action shows spinner for large rolls",
+            async: true,
+            test: async () => {
+              const originalResults = DiceApp.state.rollResults;
+              DiceApp.actions.updateInput('5000d6');
+              
+              DiceApp.actions.roll();
+              const isRollingDuring = DiceApp.state.isRolling;
+              
+              await new Promise(resolve => setTimeout(resolve, 50));
+              
+              const isRollingAfter = DiceApp.state.isRolling;
+              const hasResults = DiceApp.state.rollResults.length > 0;
+              
+              DiceApp.state.rollResults = originalResults;
+              return isRollingDuring === true && isRollingAfter === false && hasResults === true;
+            }
+          },
+          {
+            name: "Roll and Clear buttons are disabled during rolling",
+            async: true,
+            test: async () => {
+              const originalResults = DiceApp.state.rollResults;
+              DiceApp.actions.updateInput('5000d6');
+              
+              DiceApp.actions.roll();
+              const isRollDisabledDuring = DiceApp.nodes.rollBtn.disabled;
+              const isClearDisabledDuring = DiceApp.nodes.clearBtn.disabled;
+              
+              await new Promise(resolve => setTimeout(resolve, 50));
+              
+              const isRollDisabledAfter = DiceApp.nodes.rollBtn.disabled;
+              const isClearDisabledAfter = DiceApp.nodes.clearBtn.disabled;
+              
+              DiceApp.state.rollResults = originalResults;
+              return isRollDisabledDuring === true && isRollDisabledAfter === false &&
+                     isClearDisabledDuring === true && isClearDisabledAfter === false;
+            }
+          },
+          {
+            name: "Roll action does not show spinner for small rolls",
+            test: () => {
+              const originalResults = DiceApp.state.rollResults;
+              // 4999 is just below the 5000 threshold
+              DiceApp.actions.updateInput('4999d6');
+              
+              DiceApp.actions.roll();
+              const isRolling = DiceApp.state.isRolling;
+              const hasResults = DiceApp.state.rollResults.length > 0;
+              
+              DiceApp.state.rollResults = originalResults;
+              return isRolling === false && hasResults === true;
+            }
+          },
+          {
             name: "computeResult - basic roll (no modifier)",
             test: () => {
               const result = DiceNotation.computeResult([3, 4, 2], {
@@ -2040,6 +3040,80 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           {
             name: "buildFormula - aggregated bonus with ceiling",
             test: () => DiceNotation.buildFormula(4, 6, 5, 20, '+', 'aggregated') === '4d6 +5+20'
+          },
+          {
+            name: "Enter and Escape keys are ignored during rolling",
+            async: true,
+            test: async () => {
+              const {state, handlers, actions} = DiceApp;
+              const originalResults = state.rollResults;
+              actions.updateInput('5000d6');
+              
+              actions.roll();
+              // Now we are rolling
+              let rollCalled = false;
+              let clearCalled = false;
+              
+              // Mock actions to see if they are called again
+              const originalRoll = actions.roll;
+              const originalClear = actions.clear;
+              actions.roll = () => { rollCalled = true; };
+              actions.clear = () => { clearCalled = true; };
+              
+              try {
+                // Simulate Enter
+                handlers.onKeyDownGlobal({ key: 'Enter', preventDefault: () => {} });
+                // Simulate Escape
+                handlers.onKeyDownGlobal({ key: 'Escape', preventDefault: () => {} });
+
+              } finally {
+                // Restore
+                actions.roll = originalRoll;
+                actions.clear = originalClear;
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 50));
+              state.rollResults = originalResults;
+              
+              // Now that we've waited, check if events that occurred during roll 
+              // (which would be processed in the next tick after computeAndRender)
+              // were correctly ignored because isRolling was still true for that tick.
+              return rollCalled === false && clearCalled === false;
+            }
+          },
+          {
+            name: "Multiple Enter presses during roll are ignored",
+            async: true,
+            test: async () => {
+              const {state, handlers, actions} = DiceApp;
+              const originalResults = state.rollResults;
+              actions.updateInput('5000d6');
+              
+              actions.roll();
+              // isRolling is now true
+              
+              let rollCount = 0;
+              const originalRoll = actions.roll;
+              actions.roll = () => { rollCount++; originalRoll.apply(actions); };
+              
+              try {
+                // Simulate multiple Enters that would be queued
+                // In a real browser, these would be queued during the sync computeAndRender.
+                // Here we just call them.
+                handlers.onKeyDownGlobal({ key: 'Enter', preventDefault: () => {} });
+                handlers.onKeyDownGlobal({ key: 'Enter', preventDefault: () => {} });
+              } finally {
+                actions.roll = originalRoll;
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+              state.rollResults = originalResults;
+              
+              // Should only have been called once (the initial one)
+              // Wait, I called it manually above once, so rollCount should be 0 if ignored,
+              // but it was ALREADY true when I called handlers.
+              return rollCount === 0;
+            }
           },
           {
             name: "Roll action produces batch groups",
@@ -2370,7 +3444,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                   const rollCountBefore = DiceApp.state.rollResults.length;
                   const valueBefore = DiceApp.state.currentValue;
 
-              DiceApp.handlers.onInputKeyDown(fakeEvent);
+              DiceApp.handlers.onKeyDownGlobal(fakeEvent);
 
               return prevented === true &&
                     DiceApp.state.currentValue === valueBefore &&
@@ -2439,6 +3513,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Roll/Clear buttons stay visible in keypad mode",
+            test: () => {
+              DiceApp.actions.setMode('keypad');
+              const rollVisible = getComputedStyle(DiceApp.nodes.rollBtn).display !== 'none';
+              const clearVisible = getComputedStyle(DiceApp.nodes.clearBtn).display !== 'none';
+              return rollVisible && clearVisible;
+            }
+          },
+          {
+            name: "Fit to width toggle is independent from input mode",
+            test: () => {
+              DiceApp.state.fitToWidth = false;
+              DiceApp.actions.setMode('keyboard');
+              DiceApp.actions.toggleFitToWidth();
+              const fitOnKeyboard = DiceApp.state.fitToWidth === true &&
+                document.body.classList.contains('fit-to-width');
+              DiceApp.actions.setMode('keypad');
+              const preservedInKeypad = DiceApp.state.fitToWidth === true &&
+                document.body.classList.contains('fit-to-width');
+              return fitOnKeyboard && preservedInKeypad;
+            }
+          },
+          {
             name: "Cursor position preserved when switching from keypad to keyboard",
             test: () => {
               DiceApp.actions.setMode('keypad');
@@ -2480,6 +3577,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             currentValue: DiceApp.state.currentValue,
             cursorPosition: DiceApp.state.cursorPosition,
             mode: DiceApp.state.mode,
+            fitToWidth: DiceApp.state.fitToWidth,
             inputValue: DiceApp.nodes.input.value,
             displayHTML: DiceApp.nodes.display.innerHTML,
             displayClasses: DiceApp.nodes.display.className,
@@ -2515,8 +3613,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             DiceApp.state.currentValue = savedState.currentValue;
             DiceApp.state.cursorPosition = savedState.cursorPosition;
             DiceApp.state.mode = savedState.mode;
+            DiceApp.state.fitToWidth = savedState.fitToWidth;
             DiceApp.state.rollResults = [];
             DiceApp.state.errorMessage = '';
+            DiceApp.state.isRolling = false;
             DiceApp.nodes.input.value = savedState.inputValue;
             DiceApp.nodes.display.innerHTML = savedState.displayHTML;
             DiceApp.nodes.display.className = savedState.displayClasses;
@@ -2591,7 +3691,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       bindEvents() {
         DiceApp.nodes.input.addEventListener('input', (e) => DiceApp.handlers.onInput(e));
-        DiceApp.nodes.input.addEventListener('keydown', (e) => DiceApp.handlers.onInputKeyDown(e));
         DiceApp.nodes.input.addEventListener('keyup', (e) => DiceApp.handlers.onInput(e));
         DiceApp.nodes.input.addEventListener('click', (e) => DiceApp.handlers.onInput(e));
         DiceApp.nodes.keypad.addEventListener('click', (e) => DiceApp.handlers.onKeypadClick(e));
