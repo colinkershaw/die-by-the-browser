@@ -1740,6 +1740,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 : r.indicator === '^'
                   ? `<span class="die-clamp-ceiling">${r.total}</span>`
                   : `${r.total}`;
+              // rollDetails exists for current compute paths; fallback preserves compatibility
+              // with any older saved/result objects that only provide r.rolls.
               const rollsDisplay = r.rollDetails
                 ? r.rollDetails.map(d => {
                   const criticalClass = d.isCriticalSuccess

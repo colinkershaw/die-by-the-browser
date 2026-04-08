@@ -401,8 +401,9 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
   });
 
   test('should render exploding dice styling in aggregated mode', async ({page}) => {
-    // beforeEach mock sequence is [0.1, 0.5, 0.9] => 1,4,6 and explosion bonus 1,
-    // so 3d6! should render 4 roll chunks total with 2 chunks marked as exploded.
+    // The suite-level beforeEach mock sequence is [0.1, 0.5, 0.9] repeatedly.
+    // For 3d6! this yields rolls 1,4,6 and an explosion bonus 1, so standard explode
+    // expansion shows [1,4,6,1], with 2 chunks carrying the explode class.
     await page.fill('#diceInput', '3d6! -1-0');
     await page.click('#rollBtn');
     await expect(page.locator('.result-formula')).toHaveText('3d6! -1-0');
