@@ -1740,6 +1740,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 : r.indicator === '^'
                   ? `<span class="die-clamp-ceiling">${r.total}</span>`
                   : `${r.total}`;
+              const rollsDisplay = r.rollDetails
+                ? r.rollDetails.map(d => {
+                  const criticalClass = d.isCriticalSuccess
+                    ? 'die-critical-success'
+                    : d.isCriticalFailure
+                      ? 'die-critical-failure'
+                      : '';
+                  const droppedClass = d.isDropped ? 'die-dropped' : '';
+                  const exploded = isExploded(d);
+                  const isCompoundExplode = d.compound === true;
+                  const glowClass = exploded
+                    ? (isCompoundExplode ? 'die-explode-compound' : 'die-explode-standard')
+                    : '';
+                  const chipWidth = isCompoundExplode
+                    ? String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length
+                    : String(r.sides).length;
+                  const display = stripExplodeMarkers(d.resultDisplay || `${d.displayValue}`);
+                  return `<span class="roll-chunk ${droppedClass} ${glowClass}">` +
+                    `<span class="roll-val ${criticalClass}" style="min-width:${chipWidth}ch">${display}</span>` +
+                    `</span>`;
+                }).join('')
+                : rollValSpans(r.rolls, r.sides);
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
@@ -1749,7 +1771,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${decoratedTotal}</span></div>
           <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollValSpans(r.rolls, r.sides)}</span></div>
+          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;

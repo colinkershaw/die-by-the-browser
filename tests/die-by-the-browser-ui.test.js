@@ -400,6 +400,17 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
     await expect(page.locator('.roll-chunk.die-explode-standard')).toHaveCount(1);
   });
 
+  test('should render exploding dice styling in aggregated mode', async ({page}) => {
+    // beforeEach mock sequence is [0.1, 0.5, 0.9] => 1,4,6 and explosion bonus 1,
+    // so 3d6! should render 4 roll chunks total with 2 chunks marked as exploded.
+    await page.fill('#diceInput', '3d6! -1-0');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-formula')).toHaveText('3d6! -1-0');
+    await expect(page.locator('.result-math')).toBeVisible();
+    await expect(page.locator('.result-rolls .roll-chunk')).toHaveCount(4);
+    await expect(page.locator('.roll-chunk.die-explode-standard')).toHaveCount(2);
+  });
+
   test('should render compound exploding dice with !! notation', async ({page}) => {
     await page.fill('#diceInput', '2d6!!');
     await page.click('#rollBtn');
