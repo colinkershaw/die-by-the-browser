@@ -16,9 +16,19 @@ const DESKTOP_VIEWPORT = {width: 1280, height: 720};
 const MOBILE_VIEWPORT = {width: 400, height: 900};
 
 async function setMockRandom(page, value) {
-  await page.addInitScript((v) => {
-    Math.random = () => v;
+  await page.addInitScript((input) => {
+    // Convert single value to array if needed
+    const values = Array.isArray(input) ? input : [input];
+    let index = 0;
+
+    // Override the Math.random set by beforeEach
+    Math.random = () => {
+      const val = values[index];
+      index = (index + 1) % values.length;
+      return val;
+    };
   }, value);
+
   await page.reload();
 }
 
@@ -397,7 +407,7 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
     await page.fill('#diceInput', '3d6!');
     await page.click('#rollBtn');
     await expect(page.locator('.result-formula')).toHaveText('3d6!');
-    await expect(page.locator('.roll-chunk.die-explode-standard')).toHaveCount(1);
+    await expect(page.locator('.roll-chunk.die-explode-standard')).toHaveCount(2);
   });
 
   test('should render exploding dice styling in aggregated mode', async ({page}) => {
@@ -413,10 +423,79 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
   });
 
   test('should render compound exploding dice with !! notation', async ({page}) => {
-    await page.fill('#diceInput', '2d6!!');
+    await setMockRandom(page, [0.05, 0.99, 0.05]);
+    await page.fill('#diceInput', '2d12!!');
     await page.click('#rollBtn');
-    await expect(page.locator('.result-formula')).toHaveText('2d6!!');
+    await expect(page.locator('.result-formula')).toHaveText('2d12!!');
     await expect(page.locator('.roll-chunk.die-explode-compound')).toHaveCount(1);
+    // await expect(page.locator('.result-rolls .raw-text')).toContainText(['2', '15']);
+    await expect(page.locator('.roll-val')).toHaveText(['1', '13']);
+  });
+
+  test('should handle multiple chained compound explosions', async ({ page }) => {
+    // Sequence:
+    // 0.1  -> 2 (Die 1)
+    // 0.99 -> 12 (Die 2, Explodes!!)
+    // 0.99 -> 12 (Bonus 1, Explodes!!)
+    // 0.1  -> 2 (Bonus 2, Stops)
+    // Total for Die 2: 12 + 12 + 2 = 26
+    await setMockRandom(page, [0.1, 0.99, 0.99, 0.1]);
+
+    await page.goto(APP_URL);
+    await page.fill('#diceInput', '2d12!!');
+    await page.click('#rollBtn');
+
+    // Verify the compound result is summed into a single '26'
+    await expect(page.locator('.roll-val')).toHaveText(['2', '26']);
+
+    // Verify only one die is marked as a compound explosion
+    await expect(page.locator('.die-explode-compound')).toHaveCount(1);
+  });
+
+  test('should handle multiple chained compound explosions then one regular', async ({page}) => {
+    /*
+      * Rolling Logic Trace (Breadth-First):
+      * 1. [0.1]  -> Die 1 (Base)      -> 2
+      * 2. [0.99] -> Die 2 (Base)      -> 12 (Triggers !! explosion)
+      * 3. [0.1]  -> Die 3 (Base)      -> 2
+      * 4. [0.99] -> Die 2 (Bonus 1)   -> +12 (Triggers !! again)
+      * 5. [0.1]  -> Die 2 (Bonus 2)   -> +2 (Stops)
+      * Result for Die 2: 12 + 12 + 2 = 26
+      */
+    await setMockRandom(page, [0.1, 0.99, 0.1, 0.99, 0.1]);
+
+    await page.goto(APP_URL);
+    await page.fill('#diceInput', '3d12!!');
+    await page.click('#rollBtn');
+
+    // Verify the compound result is summed into a single '26'
+    await expect(page.locator('.roll-val')).toHaveText(['2', '26', '2']);
+
+    // Verify only one die is marked as a compound explosion
+    await expect(page.locator('.die-explode-compound')).toHaveCount(1);
+  })
+
+  test('should handle multiple dice exploding simultaneously', async ({page}) => {
+    /*
+     * Rolling Logic Trace (Breadth-First):
+     * 1. [0.99] -> Die 1 (Base)    -> 12 (Triggers !! explosion)
+     * 2. [0.99] -> Die 2 (Base)    -> 12 (Triggers !! explosion)
+     * 3. [0.1]  -> Die 1 (Bonus)   -> +2 (Stops)
+     * 4. [0.5]  -> Die 2 (Bonus)   -> +7 (Stops)
+     * Result Die 1: 12 + 2 = 14
+     * Result Die 2: 12 + 7 = 19
+     */
+    await setMockRandom(page, [0.99, 0.99, 0.1, 0.5]);
+
+    await page.goto(APP_URL);
+    await page.fill('#diceInput', '2d12!!');
+    await page.click('#rollBtn');
+
+    // Verify both dice are summed correctly
+    await expect(page.locator('.roll-val')).toHaveText(['14', '19']);
+
+    // Verify both are marked as compound explosions
+    await expect(page.locator('.die-explode-compound')).toHaveCount(2);
   });
 
   test('should render keep-high filter', async ({page}) => {
@@ -475,7 +554,10 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
     await page.click('#rollBtn');
     await expect(page.locator('.result-formula')).toHaveText('3d4-3-1');
     await expect(page.locator('.die-clamp-floor')).toHaveCount(3);
-    await expect(page.locator('.result-rolls .die-raw')).toContainText('-3');
+    await expect(page.locator('.result-rolls .die-raw')).toContainText(['-3', '-3', '-3']);
+    await expect(page.locator('.die-raw').first()).toHaveText('=1-3');
+    await expect(page.locator('.die-raw').nth(1)).toHaveText('=1-3');
+    await expect(page.locator('.die-raw').nth(2)).toHaveText('=1-3');
   });
 
   test('should render distributed ceiling formatting with indicators', async ({page}) => {
@@ -484,7 +566,10 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
     await page.click('#rollBtn');
     await expect(page.locator('.result-formula')).toHaveText('3d4+5+7');
     await expect(page.locator('.die-clamp-ceiling')).toHaveCount(3);
-    await expect(page.locator('.result-rolls .die-raw')).toContainText('+5');
+    await expect(page.locator('.result-rolls .die-raw')).toContainText(['+5', '+5', '+5']);
+    await expect(page.locator('.die-raw').first()).toHaveText('=4+5');
+    await expect(page.locator('.die-raw').nth(1)).toHaveText('=4+5');
+    await expect(page.locator('.die-raw').nth(2)).toHaveText('=4+5');
   });
 
   test('should render aggregated math row and range labels', async ({page}) => {
@@ -550,13 +635,15 @@ test.describe('DiceApp - Visual Regression', () => {
     await page.goto(APP_URL);
     await page.click('#hamburger');
     await page.click('[data-setting="fit-to-width"]');
+    await page.fill('#diceInput', '300d6 40d8 25d20 100d100');
+    await page.click('#rollBtn');
     await expect(page).toHaveScreenshot('fit-to-width-desktop.png', { fullPage: true });
   });
 
   test('complex roll results', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
-    await page.fill('#diceInput', '3d6 4d8 2d20 1d100');
+    await page.fill('#diceInput', '3d6 2 4d8 3d20+1+17 3d100 -2-10 3d6! 3d10!! 3d6!+1+2 3d10!!++2 3d6+-1 3d6!!--2 3d6-+1');
     await page.click('#rollBtn');
     await expect(page).toHaveScreenshot('complex-results.png', { fullPage: true });
   });
@@ -637,9 +724,8 @@ test.describe('DiceApp - Edge Cases', () => {
     await page.fill('#diceInput', '1d20');
     await page.click('#rollBtn');
 
-    const rolls = page.locator('.result-rolls');
-    const count = await rolls.locator('.roll-val').count();
-    expect(count).toBe(1);
+    const rolls = page.locator('.result-rolls').locator(".roll-val");
+    await expect(rolls).toHaveCount(1);
   });
 
   test('should reject zero dice', async ({page}) => {
@@ -660,23 +746,39 @@ test.describe('DiceApp - Edge Cases', () => {
     await expect(error).toBeVisible();
   });
 
-  test('should handle rapid clicking', async ({page}) => {
+  test('should handle rapid clicking and show final result', async ({ page }) => {
     await page.goto(APP_URL);
-    await setMockRandom(page, 0.5);
-    await page.fill('#diceInput', '3d6');
 
-    // Click roll button rapidly
-    await Promise.all([
-      page.click('#rollBtn'),
-      page.click('#rollBtn'),
-      page.click('#rollBtn')
-    ]);
+    // 1. Setup mock and input
+    await setMockRandom(page, 0.5); // Ensure predictable results
+    const input = page.locator('#diceInput');
+    const rollBtn = page.locator('#rollBtn');
+    await input.fill('3d6');
 
-    // Should still show results
-    const results = page.locator('.result-item');
-    await expect(results).toHaveCount(3);
-    await expect(page.locator('.error')).toHaveCount(0);
-    await expect(page.locator('.result-formula')).toHaveCount(3);
+    // 2. Rapid-fire clicks (without waiting for individual completions)
+    // We use a simple loop to fire them off quickly
+    for (let i = 0; i < 5; i++) {
+      await rollBtn.click();
+    }
+
+    // 3. Verify stability
+    // Ensure no error messages appeared during the spamming
+    const error = page.locator('.error');
+    await expect(error).not.toBeVisible();
+
+    // 4. Verify the final UI state
+    const resultItem = page.locator('.result-item');
+
+    // High-level check: Exactly one result exists
+    await expect(resultItem).toHaveCount(1);
+
+    // Detailed check: The formula is correct
+    await expect(resultItem.locator('.result-formula')).toHaveText('3d6');
+
+    // Specific data check: Total is correct for the mock
+    const totalValue = resultItem.locator('.result-value');
+    await expect(totalValue).toHaveText('12');
+    await expect(resultItem.locator('.roll-val')).toHaveText(['4', '4', '4']);
   });
 
   test('should reject very large numbers (overflow count)', async ({page}) => {

@@ -96,9 +96,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .app-header {
             max-width: 500px;
-            margin: 0 auto;
             position: relative;
-            margin-bottom: 30px;
+            margin: 0 auto 30px;
         }
 
         .header {
@@ -490,6 +489,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #a0aec0;
             font-size: 0.78em;
             text-transform: uppercase;
+            /*noinspection CssNonIntegerLengthInPixels*/
             letter-spacing: 0.6px;
             min-width: 50px;
             flex-shrink: 0;
@@ -1719,7 +1719,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 const rawValue = isCompoundExplode && exploded
                   ? `<span class="die-compound-val">${rawText}</span>`
                   : rawText;
-                const gameText = stripExplodeMarkers(d.resultDisplay || `${d.result}`);
+                const gameText = Number(stripExplodeMarkers(d.resultDisplay || `${d.result}`));
                 return `<span class="die-cell ${droppedClass}" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${rawText})">` +
                 gameSpan(gameText, d.indicator, maxGameWidth, criticalClass, chipGlowClass) +
                 `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${modStr}</span>` +
@@ -1878,7 +1878,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * @param {string} val
        * @param {number} pos
        */
-      updateInput(val, pos) {
+      updateInput(val, pos = (val ?? '').length) {
         const {state, ui} = DiceApp;
         state.currentValue = val;
         state.cursorPosition = (pos !== undefined) ? pos : val.length;
@@ -2029,16 +2029,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * @param {Event} e
        */
       onInput(e) {
-        const {value, selectionStart} = e.target;
+        /** @type {HTMLTextAreaElement} */
+        const target = e.target;
+        const {value, selectionStart} = target;
         const beforeCursor = value.slice(0, selectionStart);
         const sanitizedBeforeCursor = beforeCursor.replace(/[\r\n]+/g, ' ');
         const sanitizedValue = value.replace(/[\r\n]+/g, ' ');
 
         if (sanitizedValue !== value) {
-          e.target.value = sanitizedValue;
-          e.target.setSelectionRange(sanitizedBeforeCursor.length, sanitizedBeforeCursor.length);
+          target.value = sanitizedValue;
+          target.setSelectionRange(sanitizedBeforeCursor.length, sanitizedBeforeCursor.length);
         }
-        DiceApp.actions.updateInput(e.target.value, e.target.selectionStart);
+        DiceApp.actions.updateInput(target.value, target.selectionStart);
       },
 
       /**
@@ -2980,14 +2982,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               DiceApp.actions.setMode('keyboard');
 
-                  const originalValue = DiceApp.state.currentValue;
-                  const originalCursor = DiceApp.state.cursorPosition;
+              const originalValue = DiceApp.state.currentValue;
+              const originalCursor = DiceApp.state.cursorPosition;
 
               const fakeEvent = {
                 target: {
                   value: '3d6\r\n4d8\n2d10\r1d4',
-                      selectionStart: '3d6\r\n4d8\n2d10'.length,
-                      selectionEnd: '3d6\r\n4d8\n2d10'.length,
+                  selectionStart: '3d6\r\n4d8\n2d10'.length,
+                  selectionEnd: '3d6\r\n4d8\n2d10'.length,
                   setSelectionRange(start, end) {
                     this.selectionStart = start;
                     this.selectionEnd = end;
@@ -2995,23 +2997,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 }
               };
 
+              //noinspection JSCheckFunctionSignatures
               DiceApp.handlers.onInput(fakeEvent);
 
-                  const expectedValue = '3d6 4d8 2d10 1d4';
-                  const expectedCursor = '3d6 4d8 2d10'.length;
+              const expectedValue = '3d6 4d8 2d10 1d4';
+              const expectedCursor = '3d6 4d8 2d10'.length;
 
-                  const passed =
-                    fakeEvent.target.value === expectedValue &&
-                    fakeEvent.target.selectionStart === expectedCursor &&
-                    fakeEvent.target.selectionEnd === expectedCursor &&
-                    DiceApp.state.currentValue === expectedValue &&
-                    DiceApp.state.cursorPosition === expectedCursor &&
-                    !/[\r\n]/.test(fakeEvent.target.value);
+              const passed =
+                fakeEvent.target.value === expectedValue &&
+                fakeEvent.target.selectionStart === expectedCursor &&
+                fakeEvent.target.selectionEnd === expectedCursor &&
+                DiceApp.state.currentValue === expectedValue &&
+                DiceApp.state.cursorPosition === expectedCursor &&
+                !/[\r\n]/.test(fakeEvent.target.value);
 
-                  DiceApp.state.currentValue = originalValue;
-                  DiceApp.state.cursorPosition = originalCursor;
+              DiceApp.state.currentValue = originalValue;
+              DiceApp.state.cursorPosition = originalCursor;
 
-                  return passed;
+              return passed;
             }
           },
           {
@@ -3020,15 +3023,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: async () => {
               const originalResults = DiceApp.state.rollResults;
               DiceApp.actions.updateInput('5000d6');
-              
+
               DiceApp.actions.roll();
               const isRollingDuring = DiceApp.state.isRolling;
-              
+
               await new Promise(resolve => setTimeout(resolve, 50));
-              
+
               const isRollingAfter = DiceApp.state.isRolling;
               const hasResults = DiceApp.state.rollResults.length > 0;
-              
+
               DiceApp.state.rollResults = originalResults;
               return isRollingDuring === true && isRollingAfter === false && hasResults === true;
             }
@@ -3039,16 +3042,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: async () => {
               const originalResults = DiceApp.state.rollResults;
               DiceApp.actions.updateInput('5000d6');
-              
+
               DiceApp.actions.roll();
               const isRollDisabledDuring = DiceApp.nodes.rollBtn.disabled;
               const isClearDisabledDuring = DiceApp.nodes.clearBtn.disabled;
-              
+
               await new Promise(resolve => setTimeout(resolve, 50));
-              
+
               const isRollDisabledAfter = DiceApp.nodes.rollBtn.disabled;
               const isClearDisabledAfter = DiceApp.nodes.clearBtn.disabled;
-              
+
               DiceApp.state.rollResults = originalResults;
               return isRollDisabledDuring === true && isRollDisabledAfter === false &&
                      isClearDisabledDuring === true && isClearDisabledAfter === false;
@@ -3060,11 +3063,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const originalResults = DiceApp.state.rollResults;
               // 4999 is just below the 5000 threshold
               DiceApp.actions.updateInput('4999d6');
-              
+
               DiceApp.actions.roll();
               const isRolling = DiceApp.state.isRolling;
               const hasResults = DiceApp.state.rollResults.length > 0;
-              
+
               DiceApp.state.rollResults = originalResults;
               return isRolling === false && hasResults === true;
             }
@@ -3099,18 +3102,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const {state, handlers, actions} = DiceApp;
               const originalResults = state.rollResults;
               actions.updateInput('5000d6');
-              
+
               actions.roll();
               // Now we are rolling
               let rollCalled = false;
               let clearCalled = false;
-              
+
               // Mock actions to see if they are called again
               const originalRoll = actions.roll;
               const originalClear = actions.clear;
               actions.roll = () => { rollCalled = true; };
               actions.clear = () => { clearCalled = true; };
-              
+
               try {
                 // Simulate Enter
                 handlers.onKeyDownGlobal({ key: 'Enter', preventDefault: () => {} });
@@ -3122,10 +3125,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 actions.roll = originalRoll;
                 actions.clear = originalClear;
               }
-              
+
               await new Promise(resolve => setTimeout(resolve, 50));
               state.rollResults = originalResults;
-              
+
               // Now that we've waited, check if events that occurred during roll 
               // (which would be processed in the next tick after computeAndRender)
               // were correctly ignored because isRolling was still true for that tick.
@@ -3139,14 +3142,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const {state, handlers, actions} = DiceApp;
               const originalResults = state.rollResults;
               actions.updateInput('5000d6');
-              
+
               actions.roll();
               // isRolling is now true
-              
+
               let rollCount = 0;
               const originalRoll = actions.roll;
               actions.roll = () => { rollCount++; originalRoll.apply(actions); };
-              
+
               try {
                 // Simulate multiple Enters that would be queued
                 // In a real browser, these would be queued during the sync computeAndRender.
@@ -3156,10 +3159,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               } finally {
                 actions.roll = originalRoll;
               }
-              
+
               await new Promise(resolve => setTimeout(resolve, 100));
               state.rollResults = originalResults;
-              
+
               // Should only have been called once (the initial one)
               // Wait, I called it manually above once, so rollCount should be 0 if ignored,
               // but it was ALREADY true when I called handlers.
