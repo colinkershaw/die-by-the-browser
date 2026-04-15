@@ -1,4 +1,4 @@
-# ![Application Icon](icon_readme_x60.png) Die! By the Browser
+# ![Application Icon](icon_readme_f60.png) Die! By the Browser
 
 A free, open-source dice roller for tabletop RPGs. Single HTML file — no frameworks, no dependencies, no internet required.
 
