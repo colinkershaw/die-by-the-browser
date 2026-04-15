@@ -6,6 +6,7 @@
     "test:unit": "node ./tests/die-by-the-browser-unit.test.js"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
     "@playwright/test": "^1.58.0",
     "@types/node": "^25.2.3",
     "jsdom": "^27.0.1"
