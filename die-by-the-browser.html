@@ -3068,13 +3068,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
               DiceApp.actions.roll();
               const isRollingDuring = DiceApp.state.isRolling;
-              const sameReferenceDuring = DiceApp.state.rollResults === sentinelResults;
+              const preservesResultsWhileRolling = DiceApp.state.rollResults === sentinelResults;
 
               await new Promise(resolve => setTimeout(resolve, 50));
               const changedAfter = DiceApp.state.rollResults !== sentinelResults && DiceApp.state.rollResults.length > 0;
 
               DiceApp.state.rollResults = originalResults;
-              return isRollingDuring === true && sameReferenceDuring === true && changedAfter === true;
+              return isRollingDuring === true && preservesResultsWhileRolling === true && changedAfter === true;
             }
           },
           {

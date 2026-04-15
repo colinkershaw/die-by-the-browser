@@ -518,7 +518,9 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
     await page.click('#rollBtn');
 
     await expect(page.locator('.die-dropped')).toHaveCount(1);
-    await expect(page.locator('.result-rolls .die-cell:not(.die-dropped), .result-rolls .roll-chunk:not(.die-dropped)')).toHaveCount(1);
+    const keptDieCellCount = await page.locator('.result-rolls .die-cell:not(.die-dropped)').count();
+    const keptRollChunkCount = await page.locator('.result-rolls .roll-chunk:not(.die-dropped)').count();
+    expect(keptDieCellCount + keptRollChunkCount).toBe(1);
   });
 
   test('should strongly de-emphasize dropped dice styling', async ({page}) => {
