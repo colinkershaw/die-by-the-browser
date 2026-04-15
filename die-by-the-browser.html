@@ -624,10 +624,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             font-size: 0.88em;
             margin-right: 4px;
         }
-
         .die-dropped {
-            text-decoration: line-through;
-            opacity: 0.7;
+            color: #8c96ac;
+            opacity: 0.55;
+            text-decoration-line: line-through;
+            text-decoration-thickness: 2px;
+            text-decoration-color: rgba(180, 192, 214, 0.9);
+            text-decoration-skip-ink: none;
         }
 
         .die-critical-success {
@@ -1653,13 +1656,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           ).join('');
         };
 
-        let newHTML = '';
-        if (state.isRolling) {
-          newHTML = `<div class="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span>Rolling...</span></div>`;
-        } else if (state.errorMessage) {
-          newHTML = `<div class="error">${state.errorMessage}</div>`;
-        } else {
-          newHTML = state.rollResults.map(r => {
+        const resultsHTML = state.rollResults.map(r => {
             /**
              * Render a game-result value with floor/ceiling visual decoration.
              * Model stores '*' (floor) and '^' (ceiling); View renders underline/overline.
@@ -1811,7 +1808,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       `;
             }
           }).join('');
+
+        const htmlParts = [];
+        if (state.errorMessage) {
+          htmlParts.push(`<div class="error">${state.errorMessage}</div>`);
         }
+        if (resultsHTML) {
+          htmlParts.push(resultsHTML);
+        }
+        if (state.isRolling) {
+          htmlParts.push(`<div class="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span>Rolling...</span></div>`);
+        }
+        const newHTML = htmlParts.join('');
 
         // Only update DOM if content has changed to avoid "jumping" on every keystroke
         if (nodes.results.innerHTML !== newHTML) {
@@ -1901,7 +1909,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         if (!parsed) {
           state.errorMessage = DiceNotation.getErrorMessage(error);
-          state.rollResults = [];
           state.isRolling = false;
           ui.renderAll();
           return;
@@ -1909,7 +1916,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         const computeAndRender = () => {
           state.errorMessage = '';
-          state.rollResults = [];
+          const nextResults = [];
 
           for (const coll of parsed) {
             const {
@@ -1922,11 +1929,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 count, sides, modifier, limit, limitSign, modifierMode,
                 explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
               });
-              state.rollResults.push(result);
+              nextResults.push(result);
             }
           }
 
+          state.rollResults = nextResults;
+
           utils.setQueryParam('dice', notation);
+          if (!state.isRolling) {
+            ui.renderAll();
+            return;
+          }
           setTimeout(() => {
             state.isRolling = false;
             ui.renderAll();
@@ -1937,7 +1950,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         if (estimatedDiceCount >= 5000) {
           state.errorMessage = '';
-          state.rollResults = [];
           state.isRolling = true;
           ui.renderAll();
           setTimeout(computeAndRender, 0);
