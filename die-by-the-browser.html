@@ -3037,6 +3037,100 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Roll action keeps previous results while large roll is in progress",
+            async: true,
+            test: async () => {
+              const originalResults = DiceApp.state.rollResults;
+              const sentinelResults = [{
+                formula: '1d6',
+                mode: 'none',
+                rolls: [4],
+                total: 4,
+                min: 1,
+                max: 6,
+                sides: 6
+              }];
+              DiceApp.state.rollResults = sentinelResults;
+              DiceApp.state.errorMessage = '';
+              DiceApp.actions.updateInput('5000d6');
+
+              DiceApp.actions.roll();
+              const isRollingDuring = DiceApp.state.isRolling;
+              const sameReferenceDuring = DiceApp.state.rollResults === sentinelResults;
+
+              await new Promise(resolve => setTimeout(resolve, 50));
+              const changedAfter = DiceApp.state.rollResults !== sentinelResults && DiceApp.state.rollResults.length > 0;
+
+              DiceApp.state.rollResults = originalResults;
+              return isRollingDuring === true && sameReferenceDuring === true && changedAfter === true;
+            }
+          },
+          {
+            name: "Roll action does not render empty results during large-roll spinner",
+            async: true,
+            test: async () => {
+              const {state, ui, nodes, actions} = DiceApp;
+              const originalResults = state.rollResults;
+              const originalRenderAll = ui.renderAll;
+
+              state.rollResults = [{
+                formula: '1d6',
+                mode: 'none',
+                rolls: [3],
+                total: 3,
+                min: 1,
+                max: 6,
+                sides: 6
+              }];
+              state.errorMessage = '';
+              ui.renderAll();
+
+              let renderedEmptyWhileRolling = false;
+              ui.renderAll = function(...args) {
+                const out = originalRenderAll.apply(this, args);
+                if (state.isRolling && nodes.results.querySelectorAll('.result-item').length === 0) {
+                  renderedEmptyWhileRolling = true;
+                }
+                return out;
+              };
+
+              actions.updateInput('5000d6');
+              actions.roll();
+              await new Promise(resolve => setTimeout(resolve, 50));
+
+              ui.renderAll = originalRenderAll;
+              state.rollResults = originalResults;
+
+              return renderedEmptyWhileRolling === false;
+            }
+          },
+          {
+            name: "Roll action keeps previous results on parse error",
+            test: () => {
+              const originalResults = DiceApp.state.rollResults;
+              const sentinelResults = [{
+                formula: '1d6',
+                mode: 'none',
+                rolls: [5],
+                total: 5,
+                min: 1,
+                max: 6,
+                sides: 6
+              }];
+
+              DiceApp.state.rollResults = sentinelResults;
+              DiceApp.state.errorMessage = '';
+              DiceApp.actions.updateInput('not-valid');
+              DiceApp.actions.roll();
+
+              const hasError = DiceApp.state.errorMessage.length > 0;
+              const keptResults = DiceApp.state.rollResults === sentinelResults;
+
+              DiceApp.state.rollResults = originalResults;
+              return hasError === true && keptResults === true;
+            }
+          },
+          {
             name: "Roll and Clear buttons are disabled during rolling",
             async: true,
             test: async () => {

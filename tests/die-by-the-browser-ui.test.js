@@ -512,6 +512,37 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
     await expect(page.locator('.die-dropped')).toHaveCount(1);
   });
 
+  test('should keep one dropped die and one kept die visibly distinct', async ({page}) => {
+    await setMockRandom(page, [0.1, 0.9]);
+    await page.fill('#diceInput', '2d20++1');
+    await page.click('#rollBtn');
+
+    await expect(page.locator('.die-dropped')).toHaveCount(1);
+    await expect(page.locator('.result-rolls .die-cell:not(.die-dropped), .result-rolls .roll-chunk:not(.die-dropped)')).toHaveCount(1);
+  });
+
+  test('should strongly de-emphasize dropped dice styling', async ({page}) => {
+    await setMockRandom(page, [0.1, 0.9]);
+    await page.fill('#diceInput', '2d20++1');
+    await page.click('#rollBtn');
+
+    const droppedDie = page.locator('.die-dropped').first();
+    await expect(droppedDie).toBeVisible();
+
+    const style = await droppedDie.evaluate((node) => {
+      const computed = getComputedStyle(node);
+      return {
+        opacity: computed.opacity,
+        textDecorationLine: computed.textDecorationLine,
+        textDecorationThickness: computed.textDecorationThickness
+      };
+    });
+
+    expect(parseFloat(style.opacity)).toBeLessThanOrEqual(0.6);
+    expect(style.textDecorationLine).toContain('line-through');
+    expect(parseFloat(style.textDecorationThickness)).toBeGreaterThanOrEqual(2);
+  });
+
   test('should show critical success styling on nat max', async ({page}) => {
     await setMockRandom(page, 0.999999);
     await page.fill('#diceInput', '1d20');
