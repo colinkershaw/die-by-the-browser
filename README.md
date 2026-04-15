@@ -1,4 +1,4 @@
-# ![icon_readme_80.png](icon_readme_50.png) Die! By the Browser
+# ![Application Icon](icon_readme_x60.png) Die! By the Browser
 
 A free, open-source dice roller for tabletop RPGs. Single HTML file — no frameworks, no dependencies, no internet required.
 
@@ -37,7 +37,7 @@ When accessed via GitHub Pages (or any HTTPS host), the app can be installed as 
 - **Custom virtual keypad**: Optimized for entering dice notation on mobile without the native keyboard covering the screen. Uses a custom pseudo-input so the native keyboard never appears.
 - **Physical keyboard support**: Full text input with cursor navigation for desktop use.
 - **Auto-detection with manual override**: Automatically selects keypad or keyboard mode based on your device, but you can force either from the ☰ menu.
-- **Fit to Width**: Removes padding and maximises screen use, accessible from the ☰ menu.
+- **Fit to Width**: Removes padding and maximizes screen use, accessible from the ☰ menu.
 - **URL state persistence**: Your dice input is saved to the URL hash on each roll. Bookmark the URL to save a configuration. The results are not stored.
 - **Batch rolls**: Roll the same expression multiple times in one go.
 - **Distributed and aggregated modifiers**: Apply a modifier to each individual die, or to the final sum; controlled by whitespace.
@@ -70,30 +70,30 @@ The input field accepts one or more space-separated dice expressions. Whitespace
 
 ### Basic Roll
 
-| Notation | Meaning |
-|---|---|
-| `NdX` | Roll N dice with X sides |
-| `3d6` | Roll 3 six-sided dice |
-| `1d20` | Roll one twenty-sided die |
+| Notation | Meaning                   |
+|----------|---------------------------|
+| `NdX`    | Roll N dice with X sides  |
+| `3d6`    | Roll 3 six-sided dice     |
+| `1d20`   | Roll one twenty-sided die |
 
 ### Multiple Groups
 
 Separate expressions with a space to roll multiple independent groups in one go.
 
-| Notation | Meaning |
-|---|---|
-| `3d6 4d12` | Roll 3d6 and 4d12 as separate results |
-| `1d20 2d6 1d4` | Three independent rolls |
+| Notation       | Meaning                               |
+|----------------|---------------------------------------|
+| `3d6 4d12`     | Roll 3d6 and 4d12 as separate results |
+| `1d20 2d6 1d4` | Three independent rolls               |
 
 ### Batch Rolls
 
 A leading integer before a space repeats the expression that many times, showing each as a separate result.
 
-| Notation | Meaning |
-|---|---|
-| `B NdX` | Roll `NdX` B times |
-| `3 3d6` | Roll 3d6 three times (e.g. rolling three D&D attributes) |
-| `6 3d6` | Roll 3d6 six times |
+| Notation | Meaning                                                  |
+|----------|----------------------------------------------------------|
+| `B NdX`  | Roll `NdX` B times                                       |
+| `3 3d6`  | Roll 3d6 three times (e.g. rolling three D&D attributes) |
+| `6 3d6`  | Roll 3d6 six times                                       |
 
 ### Modifiers
 
@@ -101,20 +101,20 @@ A leading integer before a space repeats the expression that many times, showing
 
 #### Distributed (no space — modifier applied to each die individually)
 
-| Notation | Meaning |
-|---|---|
-| `NdX-M` | Subtract M from every die result |
-| `NdX+M` | Add M to every die result |
-| `3d4-2` | Roll 3d4, subtract 2 from each die |
-| `3d4+1` | Roll 3d4, add 1 to each die |
+| Notation | Meaning                            |
+|----------|------------------------------------|
+| `NdX-M`  | Subtract M from every die result   |
+| `NdX+M`  | Add M to every die result          |
+| `3d4-2`  | Roll 3d4, subtract 2 from each die |
+| `3d4+1`  | Roll 3d4, add 1 to each die        |
 
 #### Aggregated (space before modifier — modifier applied to the total)
 
-| Notation | Meaning |
-|---|---|
-| `NdX -M` | Subtract M from the sum of all dice |
-| `NdX +M` | Add M to the sum of all dice |
-| `3d6 +5` | Roll 3d6, then add 5 to the total |
+| Notation  | Meaning                                   |
+|-----------|-------------------------------------------|
+| `NdX -M`  | Subtract M from the sum of all dice       |
+| `NdX +M`  | Add M to the sum of all dice              |
+| `3d6 +5`  | Roll 3d6, then add 5 to the total         |
 | `2d10 -3` | Roll 2d10, then subtract 3 from the total |
 
 ### Floors and Ceilings (Limits)
@@ -124,21 +124,21 @@ A third parameter clamps the result. The limit sign must match the modifier sign
 - Negative modifier (`-`) → floor (minimum value)
 - Positive modifier (`+`) → ceiling (maximum value)
 
-| Notation | Meaning |
-|---|---|
-| `NdX-M-F` | Distributed: each die result cannot go below F |
-| `NdX+M+C` | Distributed: each die result cannot exceed C |
-| `NdX -M-F` | Aggregated: the total cannot go below F |
-| `NdX +M+C` | Aggregated: the total cannot exceed C |
+| Notation   | Meaning                                        |
+|------------|------------------------------------------------|
+| `NdX-M-F`  | Distributed: each die result cannot go below F |
+| `NdX+M+C`  | Distributed: each die result cannot exceed C   |
+| `NdX -M-F` | Aggregated: the total cannot go below F        |
+| `NdX +M+C` | Aggregated: the total cannot exceed C          |
 
 **Examples:**
 
-| Notation | Meaning |
-|---|---|
-| `3d4-3-1` | Roll 3d4; subtract 3 from each die; each result has a floor of 1 |
-| `3d4+2+6` | Roll 3d4; add 2 to each die; each result has a ceiling of 6 |
-| `3d4 -3-0` | Roll 3d4, then subtract 3 from total; total has a floor of 0 |
-| `4d6 +5+20` | Roll 4d6, add 5 to total; total capped at 20 |
+| Notation    | Meaning                                                          |
+|-------------|------------------------------------------------------------------|
+| `3d4-3-1`   | Roll 3d4; subtract 3 from each die; each result has a floor of 1 |
+| `3d4+2+6`   | Roll 3d4; add 2 to each die; each result has a ceiling of 6      |
+| `3d4 -3-0`  | Roll 3d4, then subtract 3 from total; total has a floor of 0     |
+| `4d6 +5+20` | Roll 4d6, add 5 to total; total capped at 20                     |
 
 Results that were clamped to the floor are underlined; results clamped to the ceiling have an overline.
 
@@ -148,48 +148,48 @@ Results that were clamped to the floor are underlined; results clamped to the ce
 
 When a die rolls its maximum value (or meets a threshold), it is re-rolled and the extra roll is added. Results are displayed with a glow effect.
 
-| Notation | Meaning |
-|---|---|
-| `NdX!` | Standard explode on max value |
-| `NdX!!` | Compound explode on max value (all extra rolls sum into one die value) |
-| `NdX!Y` | Standard explode when result ≥ Y (Y must be ≥ 2 and ≤ X) |
+| Notation | Meaning                                                                |
+|----------|------------------------------------------------------------------------|
+| `NdX!`   | Standard explode on max value                                          |
+| `NdX!!`  | Compound explode on max value (all extra rolls sum into one die value) |
+| `NdX!Y`  | Standard explode when result ≥ Y (Y must be ≥ 2 and ≤ X)               |
 
 **Examples:**
 
-| Notation | Meaning |
-|---|---|
-| `2d6!` | Roll 2d6; a 6 triggers another d6 |
-| `2d6!!` | Roll 2d6; compound explode on 6 |
+| Notation | Meaning                           |
+|----------|-----------------------------------|
+| `2d6!`   | Roll 2d6; a 6 triggers another d6 |
+| `2d6!!`  | Roll 2d6; compound explode on 6   |
 | `2d10!8` | Roll 2d10; explode on 8, 9, or 10 |
 
 ### Keep / Drop Filters
 
 Keep or drop the highest or lowest N results from a roll. Uses a two-operator syntax (`++`, `+-`, `-+`, `--`).
 
-| Notation | Action |
-|---|---|
+| Notation | Action                     |
+|----------|----------------------------|
 | `NdX++Y` | Keep the Y highest results |
-| `NdX+-Y` | Keep the Y lowest results |
+| `NdX+-Y` | Keep the Y lowest results  |
 | `NdX-+Y` | Drop the Y highest results |
-| `NdX--Y` | Drop the Y lowest results |
+| `NdX--Y` | Drop the Y lowest results  |
 
 **Examples:**
 
-| Notation | Meaning |
-|---|---|
-| `4d6--1` | Roll 4d6, drop the lowest — standard D&D attribute roll |
-| `2d20++1` | Roll 2d20, keep the highest — advantage |
-| `2d20+-1` | Roll 2d20, keep the lowest — disadvantage |
-| `5d10-+2` | Roll 5d10, drop the 2 highest |
+| Notation  | Meaning                                                 |
+|-----------|---------------------------------------------------------|
+| `4d6--1`  | Roll 4d6, drop the lowest — standard D&D attribute roll |
+| `2d20++1` | Roll 2d20, keep the highest — advantage                 |
+| `2d20+-1` | Roll 2d20, keep the lowest — disadvantage               |
+| `5d10-+2` | Roll 5d10, drop the 2 highest                           |
 
 ### Combining Features
 
 Modifiers, limits, explosions, and filters can be combined. The order of evaluation is: **explode → filter → modifier → limit**.
 
-| Notation | Meaning |
-|---|---|
-| `4d6--1 +2` | Roll 4d6, drop lowest, add 2 to total |
-| `3 4d6--1` | Roll 3 sets of 4d6-drop-lowest |
+| Notation    | Meaning                                             |
+|-------------|-----------------------------------------------------|
+| `4d6--1 +2` | Roll 4d6, drop lowest, add 2 to total               |
+| `3 4d6--1`  | Roll 3 sets of 4d6-drop-lowest                      |
 | `2d6! -1-0` | Roll 2 exploding d6, subtract 1 from total, floor 0 |
 
 ### Placeholder / Input Hint
@@ -202,12 +202,12 @@ The input field shows `e.g., 3d6 2 3d4-2-0 4d6 +5+20` when empty.
 
 The ☰ (hamburger) menu gives access to:
 
-| Setting | Description |
-|---|---|
+| Setting               | Description                                                                |
+|-----------------------|----------------------------------------------------------------------------|
 | **Auto (Responsive)** | Default. Uses onscreen keypad on touch devices, keyboard input on desktop. |
-| **External Keyboard** | Forces text area input regardless of device. |
-| **Onscreen Keypad** | Forces the custom keypad regardless of device. Useful on tablets. |
-| **Fit to Width** | Removes container padding and fills the screen width. |
+| **External Keyboard** | Forces text area input regardless of device.                               |
+| **Onscreen Keypad**   | Forces the custom keypad regardless of device. Useful on tablets.          |
+| **Fit to Width**      | Removes container padding and fills the screen width.                      |
 
 The onscreen keypad includes: digits 0–9, `d`, space (␣), `-`, `+`, `!`, left/right cursor navigation, backspace, Roll, and Clear.
 
@@ -216,8 +216,8 @@ The onscreen keypad includes: digits 0–9, `d`, space (␣), `-`, `+`, `!`, lef
 ## 🛠 Technical Notes
 
 - **Architecture:** Single `DiceApp` namespace object with clean separation between state, UI, parsing, and rendering. All dice logic lives in a separate `DiceNotation` object (no DOM access).
-- **Parser:** Tokenises input into an AST, then evaluates. Handles all notation variants described above.
-- **URL sync:** Input state is stored in the URL hash (`#input=...`) and synchronised on each roll. Results are never stored in the URL.
+- **Parser:** Tokenizes input into an AST, then evaluates. Handles all notation variants described above.
+- **URL sync:** Input state is stored in the URL hash (`#input=...`) and synchronized on each roll. Results are never stored in the URL.
 - **PWA:** Service worker and manifest are included for HTTPS deployments. Both are automatically disabled when opening as a `file://` URL.
 - **Built-in tests:** A headless test suite is embedded in the app. Run `DiceApp.tests.run()` from the browser console to execute it.
 - **External tests:** Playwright UI tests are in the `tests/` directory in the GitHub repository.
