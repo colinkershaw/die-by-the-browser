@@ -680,6 +680,53 @@ test.describe('DiceApp - Visual Regression', () => {
     await page.click('#rollBtn');
     await expect(page).toHaveScreenshot('complex-results.png', { fullPage: true });
   });
+
+  test('spinner keeps viewport at bottom when pressing Enter', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const seedNotation = Array.from({length: 40}, () => '100d6').join(' ');
+    await page.fill('#diceInput', seedNotation);
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-item')).toHaveCount(40);
+
+    const hasVerticalScroll = await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight);
+    expect(hasVerticalScroll).toBe(true);
+
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(50);
+
+    const lastResultVisibleBefore = await page.evaluate(() => {
+      const results = document.querySelectorAll('.result-item');
+      const last = results.item(results.length - 1);
+      if (!last) return false;
+      const rect = last.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+    expect(lastResultVisibleBefore).toBe(true);
+
+    await page.evaluate(() => {
+      const input = document.getElementById('diceInput');
+      input.value = '5000d6';
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+    });
+    // Move focus away from the textarea so Enter is handled by the global keydown handler.
+    await page.mouse.click(10, DESKTOP_VIEWPORT.height - 10);
+
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.loading')).toBeVisible();
+
+    const lastResultVisibleDuring = await page.evaluate(() => {
+      const results = document.querySelectorAll('.result-item');
+      const last = results.item(results.length - 1);
+      if (!last) return false;
+      const rect = last.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+    expect(lastResultVisibleDuring).toBe(true);
+
+    expect(await page.screenshot()).toMatchSnapshot('spinner-scrolled-bottom-enter.png');
+  });
 });
 
 test.describe('DiceApp - Accessibility', () => {
