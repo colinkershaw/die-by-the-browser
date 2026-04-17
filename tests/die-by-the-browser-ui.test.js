@@ -711,7 +711,7 @@ test.describe('DiceApp - Visual Regression', () => {
       input.dispatchEvent(new Event('input', {bubbles: true}));
     });
     // Move focus away from the textarea so Enter is handled by the global keydown handler.
-    await page.mouse.click(10, DESKTOP_VIEWPORT.height - 10);
+    await page.locator('body').click();
 
     await page.keyboard.press('Enter');
     await expect(page.locator('.loading')).toBeVisible();
