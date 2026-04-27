@@ -1909,6 +1909,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         if (!parsed) {
           state.errorMessage = DiceNotation.getErrorMessage(error);
+          state.rollResults = [];
           state.isRolling = false;
           ui.renderAll();
           return;
@@ -3117,7 +3118,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "Roll action keeps previous results on parse error",
+            name: "Roll action clears previous results on parse error",
             test: () => {
               const originalResults = DiceApp.state.rollResults;
               const sentinelResults = [{
@@ -3136,10 +3137,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.actions.roll();
 
               const hasError = DiceApp.state.errorMessage.length > 0;
-              const keptResults = DiceApp.state.rollResults === sentinelResults;
+              const clearedResults = Array.isArray(DiceApp.state.rollResults) && DiceApp.state.rollResults.length === 0;
 
               DiceApp.state.rollResults = originalResults;
-              return hasError === true && keptResults === true;
+              return hasError === true && clearedResults === true;
             }
           },
           {
