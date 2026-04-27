@@ -112,6 +112,18 @@ test.describe('DiceApp - Desktop Mode', () => {
     await expect(error).toContainText('Invalid dice notation');
   });
 
+  test('should clear previous results when invalid notation is rolled', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    await page.fill('#diceInput', 'invalid');
+    await page.click('#rollBtn');
+
+    await expect(page.locator('.error')).toBeVisible();
+    await expect(page.locator('.result-item')).toHaveCount(0);
+  });
+
   test('should clear input and results', async ({page}) => {
     await page.fill('#diceInput', '3d6');
     await page.click('#rollBtn');
