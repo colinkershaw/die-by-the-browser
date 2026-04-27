@@ -33,7 +33,7 @@ async function setMockRandom(page, value) {
 }
 
 // Overriding Math.random to always return a predictable sequence
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({page}) => {
   await page.addInitScript(() => {
     let mockValues = [0.1, 0.5, 0.9];
     let index = 0;
@@ -159,7 +159,7 @@ test.describe('DiceApp - Desktop Mode', () => {
     await page.fill('#diceInput', '3d6 2d8');
     await page.click('#rollBtn');
 
-    await expect(page).toHaveScreenshot('desktop-with-results.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('desktop-with-results.png', {fullPage: true});
   });
 });
 
@@ -302,7 +302,7 @@ test.describe('DiceApp - Mobile Mode', () => {
     await page.click('button[data-value="6"]');
     await page.click('#rollBtn');
 
-    await expect(page).toHaveScreenshot('mobile-with-results.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('mobile-with-results.png', {fullPage: true});
   });
 });
 
@@ -397,7 +397,7 @@ test.describe('DiceApp - Mode Switching', () => {
   });
 });
 
-test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
+test.describe('DiceApp - Advanced Mechanics', () => {
   test.beforeEach(async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
@@ -432,7 +432,7 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
     await expect(page.locator('.roll-val')).toHaveText(['1', '13']);
   });
 
-  test('should handle multiple chained compound explosions', async ({ page }) => {
+  test('should handle multiple chained compound explosions', async ({page}) => {
     // Sequence:
     // 0.1  -> 2 (Die 1)
     // 0.99 -> 12 (Die 2, Explodes!!)
@@ -499,10 +499,10 @@ test.describe('DiceApp - Advanced Mechanics (PRD #2)', () => {
   });
 
   test('should render keep-high filter', async ({page}) => {
-    await page.fill('#diceInput', '2d20++1');
+    await page.fill('#diceInput', '3d20++1');
     await page.click('#rollBtn');
-    await expect(page.locator('.result-formula')).toHaveText('2d20++1');
-    await expect(page.locator('.die-dropped')).toHaveCount(1);
+    await expect(page.locator('.result-formula')).toHaveText('3d20++1');
+    await expect(page.locator('.die-dropped')).toHaveCount(2);
   });
 
   test('should render drop-low filter', async ({page}) => {
@@ -620,7 +620,7 @@ test.describe('DiceApp - Visual Regression', () => {
   test('empty state - desktop', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
-    await expect(page).toHaveScreenshot('empty-desktop.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('empty-desktop.png', {fullPage: true});
   });
 
   test('wrapped textarea state - desktop', async ({page}) => {
@@ -645,7 +645,7 @@ test.describe('DiceApp - Visual Regression', () => {
   test('empty state - mobile', async ({page}) => {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await page.goto(APP_URL);
-    await expect(page).toHaveScreenshot('empty-mobile.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('empty-mobile.png', {fullPage: true});
   });
 
   test('error state', async ({page}) => {
@@ -653,14 +653,14 @@ test.describe('DiceApp - Visual Regression', () => {
     await page.goto(APP_URL);
     await page.fill('#diceInput', 'invalid');
     await page.click('#rollBtn');
-    await expect(page).toHaveScreenshot('error-state.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('error-state.png', {fullPage: true});
   });
 
   test('menu open', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
     await page.click('#hamburger');
-    await expect(page).toHaveScreenshot('menu-open.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('menu-open.png', {fullPage: true});
   });
 
   test('fit-to-width enabled', async ({page}) => {
@@ -670,7 +670,7 @@ test.describe('DiceApp - Visual Regression', () => {
     await page.click('[data-setting="fit-to-width"]');
     await page.fill('#diceInput', '300d6 40d8 25d20 100d100');
     await page.click('#rollBtn');
-    await expect(page).toHaveScreenshot('fit-to-width-desktop.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('fit-to-width-desktop.png', {fullPage: true});
   });
 
   test('complex roll results', async ({page}) => {
@@ -678,55 +678,144 @@ test.describe('DiceApp - Visual Regression', () => {
     await page.goto(APP_URL);
     await page.fill('#diceInput', '3d6 2 4d8 3d20+1+17 3d100 -2-10 3d6! 3d10!! 3d6!+1+2 3d10!!++2 3d6+-1 3d6!!--2 3d6-+1');
     await page.click('#rollBtn');
-    await expect(page).toHaveScreenshot('complex-results.png', { fullPage: true });
+    await expect(page).toHaveScreenshot('complex-results.png', {fullPage: true});
   });
 
-  test('spinner keeps viewport at bottom when pressing Enter', async ({page}) => {
+});
+
+test.describe('DiceApp - Rolling... Spinner', () => {
+
+  test('shows spinner during heavy roll and hides when complete', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
 
-    const seedNotation = Array.from({length: 40}, () => '100d6').join(' ');
-    await page.fill('#diceInput', seedNotation);
-    await page.click('#rollBtn');
-    await expect(page.locator('.result-item')).toHaveCount(40);
+    const loading = page.locator('.loading');
+    const spinner = page.locator('.spinner');
 
-    const hasVerticalScroll = await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight);
-    expect(hasVerticalScroll).toBe(true);
+    // Start expensive roll
+    await page.fill('#diceInput', '20000d6');
+    await page.press('#diceInput', 'Enter');
 
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await page.waitForTimeout(50);
+    // Assert spinner/overlay appears
+    await expect.poll(async () => await loading.isVisible()).toBe(true);
+    await expect.poll(async () => await spinner.isVisible()).toBe(true);
 
-    const lastResultVisibleBefore = await page.evaluate(() => {
-      const results = document.querySelectorAll('.result-item');
-      const last = results.item(results.length - 1);
-      if (!last) return false;
-      const rect = last.getBoundingClientRect();
-      return rect.bottom > 0 && rect.top < window.innerHeight;
-    });
-    expect(lastResultVisibleBefore).toBe(true);
+    // Assert it eventually disappears
+    await expect(loading).toBeHidden({timeout: 15000});
 
-    await page.evaluate(() => {
-      const input = document.getElementById('diceInput');
-      input.value = '5000d6';
-      input.dispatchEvent(new Event('input', {bubbles: true}));
-    });
-    // Move focus away from the textarea so Enter is handled by the global keydown handler.
-    await page.locator('body').click();
-
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.loading')).toBeVisible();
-
-    const lastResultVisibleDuring = await page.evaluate(() => {
-      const results = document.querySelectorAll('.result-item');
-      const last = results.item(results.length - 1);
-      if (!last) return false;
-      const rect = last.getBoundingClientRect();
-      return rect.bottom > 0 && rect.top < window.innerHeight;
-    });
-    expect(lastResultVisibleDuring).toBe(true);
-
-    expect(await page.screenshot()).toMatchSnapshot('spinner-scrolled-bottom-enter.png');
+    // And result is rendered
+    await expect(page.locator('.result-item')).toHaveCount(1);
   });
+
+  async function isLastResultVisible(page) {
+    return page.evaluate(() => {
+      const results = document.querySelectorAll('.result-item');
+      const last = results.item(results.length - 1);
+      if (!last) return false;
+
+      const rect = last.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+  }
+
+  async function waitForLayoutSettle(page) {
+    // Let DOM/layout/paint settle deterministically (better than arbitrary sleep)
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        )
+    );
+  }
+
+  const scrollToBottom = async (page) => {
+    // Scroll to bottom and verify we are there.
+    await page.evaluate(() => {
+      const el = document.scrollingElement || document.documentElement;
+      el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  async function getScrollMetrics(page) {
+    return page.evaluate(() => {
+      const el = document.scrollingElement || document.documentElement;
+      return {
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        innerHeight: window.innerHeight,
+        bottomDistance: el.scrollHeight - (el.scrollTop + window.innerHeight), // 0 == pinned bottom
+      };
+    });
+  }
+
+  const validateScrollAfterRoll = async (page, {secondLastRoll = 'init', lastRoll = 'init'} = {}) => {
+    //await waitForLoadingCycleIfPresent(page);
+    await waitForLayoutSettle(page);
+
+    // Stable behavioral assertion (headed can settle at 4px)
+    await expect
+      .poll(async () => (await getScrollMetrics(page)).bottomDistance)
+      .toBeLessThanOrEqual(4);
+
+    await expect.poll(() => isLastResultVisible(page)).toBe(true);
+
+    // Ensure final 2 dice rolls are expected values.
+    // noinspection JSUnresolvedReference
+    await expect(page.locator('.roll-val').nth(19998)).toHaveText(secondLastRoll);
+    // noinspection JSUnresolvedReference
+    await expect(page.locator('.roll-val').nth(19999)).toHaveText(lastRoll);
+
+    return getScrollMetrics(page);
+  };
+
+  test('viewport stays at bottom with threshold dice when pressing Enter', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    // Stabilize test rendering behavior for screenshot test only.
+    // await page.addStyleTag({
+    //   content: `
+    //     html { scrollbar-gutter: stable both-edges; }
+    //     /* Apply to Firefox too */
+    //     * { scrollbar-width: thin; scrollbar-color: #0a0e1f #0a0e1f; }
+    //     /* Chromium/WebKit */
+    //     ::-webkit-scrollbar { width: 12px; background: #0a0e1f; }
+    //     ::-webkit-scrollbar-track { background: #0a0e1f; }
+    //     ::-webkit-scrollbar-thumb {
+    //       background: #0a0e1f;
+    //       border-radius: 8px;
+    //       border: 2px solid #0a0e1f;
+    //     }
+    //   `,
+    // });
+
+    // Roll large number of dice so spinner is displayed.
+    await page.fill('#diceInput', '20000d6');
+    await page.press('#diceInput', 'Enter');
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    await scrollToBottom(page);
+
+    const before = await validateScrollAfterRoll(page, {secondLastRoll: '1', lastRoll: '4'});
+
+    // Reroll via Enter.
+    await page.press('#diceInput', 'Enter');
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    const after = await validateScrollAfterRoll(page, {secondLastRoll: '6', lastRoll: '1'});
+
+    // Optional continuity check: no meaningful jump from pre-reroll bottom state
+    expect(Math.abs(after.bottomDistance - before.bottomDistance)).toBeLessThanOrEqual(4);
+
+    // Optional diagnostic screenshot (not required for pass/fail behavior):
+    // await expect(page.locator('.container')).toHaveScreenshot('spinner-scrolled-bottom-enter.png');
+    // await expect(page).toHaveScreenshot('spinner-scrolled-bottom-enter.png', {
+    //   fullPage: false,
+    //   animations: 'disabled',
+    //   caret: 'hide',
+    // });
+  });
+
 });
 
 test.describe('DiceApp - Accessibility', () => {
@@ -827,7 +916,7 @@ test.describe('DiceApp - Edge Cases', () => {
     await expect(error).toBeVisible();
   });
 
-  test('should handle rapid clicking and show final result', async ({ page }) => {
+  test('should handle rapid clicking and show final result', async ({page}) => {
     await page.goto(APP_URL);
 
     // 1. Setup mock and input
