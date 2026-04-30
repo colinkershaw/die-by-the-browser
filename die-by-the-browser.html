@@ -1656,6 +1656,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           ).join('');
         };
 
+        DiceApp.perf.mark('formatStart');
         const resultsHTML = state.rollResults.map(r => {
             /**
              * Render a game-result value with floor/ceiling visual decoration.
@@ -1820,10 +1821,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           htmlParts.push(`<div class="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span>Rolling...</span></div>`);
         }
         const newHTML = htmlParts.join('');
+        DiceApp.perf.mark('formatEnd');
 
         // Only update DOM if content has changed to avoid "jumping" on every keystroke
         if (nodes.results.innerHTML !== newHTML) {
+          DiceApp.perf.mark('domCommitStart');
           nodes.results.innerHTML = newHTML;
+          DiceApp.perf.mark('domCommitEnd');
+        }
+
+        // Paint-adjacent timing: schedule two rAF callbacks after a results render.
+        // Only triggered when actual results are ready (not for error-only or empty renders)
+        // so that the measured rAF gap reflects a heavy content commit, not a trivial DOM swap.
+        // The gap between domCommitEnd and the second rAF callback approximates
+        // browser layout+paint latency (not a direct paint measurement).
+        if (DiceApp.perf.isEnabled() && !state.isRolling && state.rollResults.length > 0) {
+          DiceApp.perf.mark('paintAdjStart');
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              DiceApp.perf.mark('paintAdjEnd');
+              DiceApp.perf._report();
+            });
+          });
         }
 
         // Disable roll and clear buttons while rolling
@@ -1905,7 +1924,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         const notation = state.currentValue;
 
+        DiceApp.perf.beginRoll(notation);
+        DiceApp.perf.mark('parseStart');
         const {collections: parsed, error} = DiceNotation.parse(notation);
+        DiceApp.perf.mark('parseEnd');
 
         if (!parsed) {
           state.errorMessage = DiceNotation.getErrorMessage(error);
@@ -1919,6 +1941,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.errorMessage = '';
           const nextResults = [];
 
+          DiceApp.perf.mark('computeStart');
           for (const coll of parsed) {
             const {
               batchCount, count, sides, modifier, limit, limitSign, modifierMode,
@@ -1933,6 +1956,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               nextResults.push(result);
             }
           }
+          DiceApp.perf.mark('computeEnd');
 
           state.rollResults = nextResults;
 
@@ -2204,6 +2228,98 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           DiceApp.ui.closeMenu(true);
         }
       }
+    },
+
+    // Performance instrumentation (opt-in, developer-oriented)
+    // Activate via URL param ?perf=1  or  DiceApp.perf.enable()  in the browser console.
+    // Each roll emits a console.group with four measured phases plus a paint-adjacent estimate.
+    perf: {
+      enabled: false,
+      _notation: '',
+      _marks: null,
+
+      enable() {
+        this.enabled = true;
+        console.log('🔬 DiceApp perf instrumentation enabled.');
+        console.log('   Roll dice to see per-phase timings in the console.');
+        console.log('   To disable: DiceApp.perf.disable()');
+      },
+
+      disable() {
+        this.enabled = false;
+      },
+
+      isEnabled() {
+        return this.enabled;
+      },
+
+      /** Call at the very start of each roll to reset accumulated marks. */
+      beginRoll(notation) {
+        if (!this.enabled) return;
+        this._notation = notation;
+        this._marks = {};
+      },
+
+      /** Record a named timestamp (performance.now()). */
+      mark(name) {
+        if (!this.enabled || !this._marks) return;
+        this._marks[name] = performance.now();
+      },
+
+      /** Duration in ms between two marks, or null if either is missing. */
+      _dur(startMark, endMark) {
+        const m = this._marks;
+        if (!m || m[startMark] === undefined || m[endMark] === undefined) return null;
+        return m[endMark] - m[startMark];
+      },
+
+      /**
+       * Log a formatted timing report to the console.
+       * Called automatically after the two-rAF paint-adjacent measurement completes.
+       */
+      _report() {
+        if (!this.enabled || !this._marks) return;
+        const parse      = this._dur('parseStart',     'parseEnd');
+        const compute    = this._dur('computeStart',   'computeEnd');
+        const format     = this._dur('formatStart',    'formatEnd');
+        const domCommit  = this._dur('domCommitStart', 'domCommitEnd');
+        const paintAdj   = this._dur('paintAdjStart',  'paintAdjEnd');
+
+        const phases = [
+          { name: 'parse',                    ms: parse },
+          { name: 'compute',                  ms: compute },
+          { name: 'format (HTML gen)',         ms: format },
+          { name: 'DOM commit (innerHTML)',    ms: domCommit },
+          { name: 'paint-adjacent (2×rAF)',   ms: paintAdj },
+        ];
+
+        const subtotal = [parse, compute, format, domCommit]
+          .reduce((s, v) => s + (v ?? 0), 0);
+        const total = subtotal + (paintAdj ?? 0);
+
+        const label = this._notation ? `"${this._notation}"` : '(roll)';
+        console.group(`🔬 Perf ${label}`);
+        for (const { name, ms } of phases) {
+          if (ms !== null) {
+            console.log(`  ${name.padEnd(30)} ${ms.toFixed(2)} ms`);
+          }
+        }
+        console.log(`  ${'── subtotal (excl. paint)'.padEnd(30)} ${subtotal.toFixed(2)} ms`);
+        if (paintAdj !== null) {
+          console.log(`  ${'── total (incl. 2×rAF)'.padEnd(30)} ${total.toFixed(2)} ms`);
+        }
+        console.log('');
+        console.log('  ⓘ "paint-adjacent" = elapsed between the innerHTML write and the');
+        console.log('     second requestAnimationFrame callback (~layout+paint latency).');
+        console.log('     JS cannot directly observe GPU rasterisation; this is an upper');
+        console.log('     bound that includes browser scheduling overhead.');
+        console.groupEnd();
+      },
+
+      /** Return a shallow copy of the raw marks object (for programmatic use). */
+      getLastMarks() {
+        return this._marks ? { ...this._marks } : null;
+      },
     },
 
     // Test suite
@@ -3822,6 +3938,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         console.log('🎲 DiceApp initialized successfully!');
         console.log('💡 To run tests, call: DiceApp.tests.run()');
+        console.log('🔬 To enable perf instrumentation, call: DiceApp.perf.enable()');
+        console.log('   Or open the page with ?perf=1 in the URL.');
       },
 
       cacheDomElements() {
@@ -3855,6 +3973,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (diceFromUrl) {
           DiceApp.state.currentValue = diceFromUrl;
           DiceApp.state.cursorPosition = diceFromUrl.length;
+        }
+
+        if (DiceApp.utils.getQueryParam('perf') === '1') {
+          DiceApp.perf.enable();
         }
       },
 
