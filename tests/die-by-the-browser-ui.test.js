@@ -731,17 +731,41 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
 
-    // Trigger second roll and measure spinner appearance time
-    const t0 = Date.now();
+    // Enable perf instrumentation and plant a MutationObserver to record (via
+    // performance.now()) the exact moment the .loading element enters the DOM.
+    // This fires synchronously in a microtask after the innerHTML write that
+    // commits the spinner, giving us a browser-clock timestamp comparable to
+    // the DiceApp.perf mark 'computeStart'.
+    await page.evaluate(() => {
+      DiceApp.perf.enable();
+      window._spinnerPerfTime = null;
+      const obs = new MutationObserver(() => {
+        if (!window._spinnerPerfTime && document.querySelector('.loading')) {
+          window._spinnerPerfTime = performance.now();
+          obs.disconnect();
+        }
+      });
+      obs.observe(document.getElementById('results'), {childList: true, subtree: true});
+    });
+
+    // Trigger second roll
     await page.click('#rollBtn');
 
-    // Spinner must appear within 150ms from click
-    await expect.poll(async () => await loading.isVisible(), {timeout: 150}).toBe(true);
-    expect(Date.now() - t0).toBeLessThanOrEqual(150);
-
-    // Spinner disappears after roll completes
+    // Wait for roll to complete
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
+
+    // With requestAnimationFrame the browser gets a full paint frame (~16 ms)
+    // between the spinner appearing and compute starting.  With setTimeout the
+    // callback fires in the very next macrotask (~0–1 ms gap).
+    const {spinnerPerfTime, computeStart} = await page.evaluate(() => ({
+      spinnerPerfTime: window._spinnerPerfTime,
+      computeStart: DiceApp.perf.getLastMarks()?.computeStart,
+    }));
+
+    expect(spinnerPerfTime).not.toBeNull();
+    expect(computeStart).toBeDefined();
+    expect(computeStart - spinnerPerfTime).toBeGreaterThan(10);
   });
 
   test('spinner appears promptly on second roll via Enter key (retained-results path)', async ({page}) => {
@@ -756,17 +780,34 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
 
-    // Trigger second roll and measure spinner appearance time
-    const t0 = Date.now();
+    // Same perf + MutationObserver setup as the button-click variant above
+    await page.evaluate(() => {
+      DiceApp.perf.enable();
+      window._spinnerPerfTime = null;
+      const obs = new MutationObserver(() => {
+        if (!window._spinnerPerfTime && document.querySelector('.loading')) {
+          window._spinnerPerfTime = performance.now();
+          obs.disconnect();
+        }
+      });
+      obs.observe(document.getElementById('results'), {childList: true, subtree: true});
+    });
+
+    // Trigger second roll via Enter key
     await page.press('#diceInput', 'Enter');
 
-    // Spinner must appear within 150ms from keypress
-    await expect.poll(async () => await loading.isVisible(), {timeout: 150}).toBe(true);
-    expect(Date.now() - t0).toBeLessThanOrEqual(150);
-
-    // Spinner disappears after roll completes
+    // Wait for roll to complete
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
+
+    const {spinnerPerfTime, computeStart} = await page.evaluate(() => ({
+      spinnerPerfTime: window._spinnerPerfTime,
+      computeStart: DiceApp.perf.getLastMarks()?.computeStart,
+    }));
+
+    expect(spinnerPerfTime).not.toBeNull();
+    expect(computeStart).toBeDefined();
+    expect(computeStart - spinnerPerfTime).toBeGreaterThan(10);
   });
 
   async function isLastResultVisible(page) {
