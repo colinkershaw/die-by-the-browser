@@ -1726,7 +1726,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
             const sortState = r.sortState || 'original';
             const sortHandle = `<div class="sort-handle" data-sort="${sortState === 'original' ? '' : sortState}" title="Sort dice (click to cycle: descending → ascending → original)"></div>`;
-            const sortDetailsArray = (arr) => {
+            const getSortedDetails = (arr) => {
               if (!arr) return arr;
               if (sortState === 'desc') return arr.slice().sort((a, b) => (b.displayValue ?? b.result ?? 0) - (a.displayValue ?? a.result ?? 0));
               if (sortState === 'asc') return arr.slice().sort((a, b) => (a.displayValue ?? a.result ?? 0) - (b.displayValue ?? b.result ?? 0));
@@ -1748,7 +1748,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 : Math.max(String(theoreticalMinGame).length, String(theoreticalMaxGame).length);
               const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
 
-              const rollsDisplay = sortDetailsArray(r.dieResults).map(d => {
+              const rollsDisplay = getSortedDetails(r.dieResults).map(d => {
                 const criticalClass = d.isCriticalSuccess
                   ? 'die-critical-success'
                   : d.isCriticalFailure
@@ -1789,7 +1789,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // rollDetails exists for current compute paths; fallback preserves compatibility
               // with any older saved/result objects that only provide r.rolls.
               const rollsDisplay = r.rollDetails
-                ? sortDetailsArray(r.rollDetails).map(d => {
+                ? getSortedDetails(r.rollDetails).map(d => {
                   const criticalClass = d.isCriticalSuccess
                     ? 'die-critical-success'
                     : d.isCriticalFailure
@@ -1827,7 +1827,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             } else {
               // mode === 'none' (basic roll, no modifier)
               const rollsDisplay = r.rollDetails
-                ? sortDetailsArray(r.rollDetails).map(d => {
+                ? getSortedDetails(r.rollDetails).map(d => {
                   const criticalClass = d.isCriticalSuccess
                     ? 'die-critical-success'
                     : d.isCriticalFailure
@@ -4105,9 +4105,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const idx = parseInt(resultItem.dataset.resultIndex, 10);
           const result = DiceApp.state.rollResults[idx];
           if (!result) return;
-          const states = ['original', 'desc', 'asc'];
+          const cycleOrder = ['original', 'desc', 'asc'];
           const current = result.sortState || 'original';
-          result.sortState = states[(states.indexOf(current) + 1) % states.length];
+          result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
           DiceApp.ui.renderResults();
         });
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
