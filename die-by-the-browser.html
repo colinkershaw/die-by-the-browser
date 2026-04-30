@@ -1977,7 +1977,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.errorMessage = '';
           state.isRolling = true;
           ui.renderAll();
-          setTimeout(computeAndRender, 0);
+          requestAnimationFrame(computeAndRender);
           return;
         }
 
