@@ -719,6 +719,56 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await expect(page.locator('.result-item')).toHaveCount(1);
   });
 
+  test('spinner appears promptly on second roll via button click (retained-results path)', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const loading = page.locator('.loading');
+
+    // Warm-up: complete one heavy roll so prior results are retained in state
+    await page.fill('#diceInput', '90000d20+5+23');
+    await page.click('#rollBtn');
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    // Trigger second roll and measure spinner appearance time
+    const t0 = Date.now();
+    await page.click('#rollBtn');
+
+    // Spinner must appear within 150ms from click
+    await expect.poll(async () => await loading.isVisible(), {timeout: 150}).toBe(true);
+    expect(Date.now() - t0).toBeLessThanOrEqual(150);
+
+    // Spinner disappears after roll completes
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+  });
+
+  test('spinner appears promptly on second roll via Enter key (retained-results path)', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const loading = page.locator('.loading');
+
+    // Warm-up: complete one heavy roll so prior results are retained in state
+    await page.fill('#diceInput', '90000d20+5+23');
+    await page.press('#diceInput', 'Enter');
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    // Trigger second roll and measure spinner appearance time
+    const t0 = Date.now();
+    await page.press('#diceInput', 'Enter');
+
+    // Spinner must appear within 150ms from keypress
+    await expect.poll(async () => await loading.isVisible(), {timeout: 150}).toBe(true);
+    expect(Date.now() - t0).toBeLessThanOrEqual(150);
+
+    // Spinner disappears after roll completes
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+  });
+
   async function isLastResultVisible(page) {
     return page.evaluate(() => {
       const results = document.querySelectorAll('.result-item');
