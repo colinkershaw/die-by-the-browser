@@ -731,21 +731,9 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
 
-    // Enable perf instrumentation and plant a MutationObserver to record (via
-    // performance.now()) the exact moment the .loading element enters the DOM.
-    // This fires synchronously in a microtask after the innerHTML write that
-    // commits the spinner, giving us a browser-clock timestamp comparable to
-    // the DiceApp.perf mark 'computeStart'.
+    // Enable perf instrumentation for spinner/compute phase-gap marks.
     await page.evaluate(() => {
       DiceApp.perf.enable();
-      window._spinnerPerfTime = null;
-      const obs = new MutationObserver(() => {
-        if (!window._spinnerPerfTime && document.querySelector('.loading')) {
-          window._spinnerPerfTime = performance.now();
-          obs.disconnect();
-        }
-      });
-      obs.observe(document.getElementById('results'), {childList: true, subtree: true});
     });
 
     // Trigger second roll
@@ -758,14 +746,14 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     // With requestAnimationFrame the browser gets a full paint frame (~16 ms)
     // between the spinner appearing and compute starting.  With setTimeout the
     // callback fires in the very next macrotask (~0–1 ms gap).
-    const {spinnerPerfTime, computeStart} = await page.evaluate(() => ({
-      spinnerPerfTime: window._spinnerPerfTime,
+    const {spinnerRenderEnd, computeStart} = await page.evaluate(() => ({
+      spinnerRenderEnd: DiceApp.perf.getLastMarks()?.spinnerRenderEnd,
       computeStart: DiceApp.perf.getLastMarks()?.computeStart,
     }));
 
-    expect(spinnerPerfTime).not.toBeNull();
+    expect(spinnerRenderEnd).toBeDefined();
     expect(computeStart).toBeDefined();
-    expect(computeStart - spinnerPerfTime).toBeGreaterThan(10);
+    expect(computeStart - spinnerRenderEnd).toBeGreaterThan(10);
   });
 
   test('spinner appears promptly on second roll via Enter key (retained-results path)', async ({page}) => {
@@ -780,17 +768,9 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
 
-    // Same perf + MutationObserver setup as the button-click variant above
+    // Same perf setup as the button-click variant above
     await page.evaluate(() => {
       DiceApp.perf.enable();
-      window._spinnerPerfTime = null;
-      const obs = new MutationObserver(() => {
-        if (!window._spinnerPerfTime && document.querySelector('.loading')) {
-          window._spinnerPerfTime = performance.now();
-          obs.disconnect();
-        }
-      });
-      obs.observe(document.getElementById('results'), {childList: true, subtree: true});
     });
 
     // Trigger second roll via Enter key
@@ -800,14 +780,14 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
 
-    const {spinnerPerfTime, computeStart} = await page.evaluate(() => ({
-      spinnerPerfTime: window._spinnerPerfTime,
+    const {spinnerRenderEnd, computeStart} = await page.evaluate(() => ({
+      spinnerRenderEnd: DiceApp.perf.getLastMarks()?.spinnerRenderEnd,
       computeStart: DiceApp.perf.getLastMarks()?.computeStart,
     }));
 
-    expect(spinnerPerfTime).not.toBeNull();
+    expect(spinnerRenderEnd).toBeDefined();
     expect(computeStart).toBeDefined();
-    expect(computeStart - spinnerPerfTime).toBeGreaterThan(10);
+    expect(computeStart - spinnerRenderEnd).toBeGreaterThan(10);
   });
 
   async function isLastResultVisible(page) {

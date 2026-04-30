@@ -1975,8 +1975,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         if (estimatedDiceCount >= 5000) {
           state.errorMessage = '';
+          DiceApp.perf.mark('spinnerRenderStart');
           state.isRolling = true;
           ui.renderAll();
+          DiceApp.perf.mark('spinnerRenderEnd');
           requestAnimationFrame(computeAndRender);
           return;
         }
