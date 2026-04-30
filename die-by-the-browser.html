@@ -904,6 +904,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           if (aggMatch) {
             const modSign = aggMatch[1];
             group.modifier = parseInt(modSign + aggMatch[2], 10);
+            group.modifierSign = modSign;
             group.modifierMode = 'aggregated';
             if (Math.abs(group.modifier) > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
             if (aggMatch[3]) {
@@ -945,6 +946,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         count: g.count,
         sides: g.sides,
         modifier: g.modifier,
+        modifierSign: g.modifierSign,
         floor: g.floor,
         ceiling: g.ceiling,
         modifierMode: g.modifierMode,
@@ -968,6 +970,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         count,
         sides,
         modifier: 0,
+        modifierSign: null,
         floor: null,
         ceiling: null,
         modifierMode: 'none',
@@ -1033,6 +1036,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
         if (!modDigits) return {group: null, error: 'INVALID_FORMAT'};
         group.modifier = parseInt(modSign + modDigits, 10);
+        group.modifierSign = modSign;
         group.modifierMode = 'distributed';
 
         for (let n = 0; n < 2; n++) {
@@ -1159,7 +1163,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         explodeThreshold = null,
         filterAction = null,
         filterDirection = null,
-        filterCount = null
+        filterCount = null,
+        modifierSign = null
       } = advanced;
 
       if (explodeMode === 'compound') {
@@ -1175,7 +1180,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       }
 
       if (modifierMode !== 'none') {
-        const modStr = modifier >= 0 ? `+${modifier}` : `${modifier}`;
+        const modStr = modifier === 0
+          ? (modifierSign === '-' ? '-0' : '+0')
+          : (modifier >= 0 ? `+${modifier}` : `${modifier}`);
         s += modifierMode === 'aggregated' ? ` ${modStr}` : modStr;
         if (floor !== null) { s += `-${floor}`; }
         if (ceiling !== null) { s += `+${ceiling}`; }
@@ -1368,13 +1375,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * @returns {Object} Result object
      */
     computeResult(rawRolls, {
-      count, sides, modifier, floor = null, ceiling = null, modifierMode,
+      count, sides, modifier, floor = null, ceiling = null, modifierMode, modifierSign = null,
       explodeMode = 'none', explodeThreshold = null,
       filterAction = null, filterDirection = null, filterCount = null
     }, nextRollFn = null) {
       const formula = DiceNotation.buildFormula(
         count, sides, modifier, floor, ceiling, modifierMode,
-        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
+        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount, modifierSign}
       );
 
       const rollFn = typeof nextRollFn === 'function' ? nextRollFn : (s) => DiceNotation._rollDie(s);
@@ -1994,13 +2001,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           DiceApp.perf.mark('computeStart');
           for (const coll of parsed) {
             const {
-              batchCount, count, sides, modifier, floor, ceiling, modifierMode,
+              batchCount, count, sides, modifier, floor, ceiling, modifierMode, modifierSign,
               explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
             } = coll;
             for (let b = 0; b < batchCount; b++) {
               const rawRolls = DiceNotation.roll(count, sides);
               const result = DiceNotation.computeResult(rawRolls, {
-                count, sides, modifier, floor, ceiling, modifierMode,
+                count, sides, modifier, floor, ceiling, modifierMode, modifierSign,
                 explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
               });
               nextResults.push(result);
@@ -2548,6 +2555,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               return c !== null && c.length === 1 &&
                 c[0].modifier === 5 && c[0].ceiling === 10 && c[0].floor === null &&
                 c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse distributed negative zero preserves modifier sign",
+            test: () => {
+              const result = DiceNotation.parse("4d8-0-3");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 0 && c[0].modifierSign === '-' && c[0].floor === 3 &&
+                c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse aggregated negative zero preserves modifier sign",
+            test: () => {
+              const result = DiceNotation.parse("4d8 -0-3");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 0 && c[0].modifierSign === '-' && c[0].floor === 3 &&
+                c[0].modifierMode === 'aggregated';
             }
           },
           {
@@ -3426,6 +3453,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "buildFormula - distributed modifier with floor and ceiling",
             test: () => DiceNotation.buildFormula(3, 6, 3, 2, 8, 'distributed') === '3d6+3-2+8'
           },
+          {
+            name: "buildFormula - preserves negative zero sign when provided",
+            test: () => DiceNotation.buildFormula(4, 8, 0, 3, null, 'distributed', {modifierSign: '-'}) === '4d8-0-3'
+          },
+
           {
             name: "Enter and Escape keys are ignored during rolling",
             async: true,
