@@ -1743,7 +1743,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             };
 
             const sortState = r.sortState || 'original';
-            const sortHandle = `<div class="sort-handle" data-sort="${sortState === 'original' ? '' : sortState}" title="Sort dice (click to cycle: descending → ascending → original)"></div>`;
+            const sortStateLabel = sortState === 'desc' ? 'descending' : sortState === 'asc' ? 'ascending' : 'as rolled';
+            const sortHandle = `<div class="sort-handle" role="button" aria-label="Sort order: ${sortStateLabel} (click to cycle)" data-sort="${sortState === 'original' ? '' : sortState}" title="Sort dice (click to cycle: descending → ascending → original)"></div>`;
             const getSortedDetails = (arr) => {
               if (!arr) return arr;
               if (sortState === 'desc') return arr.slice().sort((a, b) => (b.displayValue ?? b.result ?? 0) - (a.displayValue ?? a.result ?? 0));
