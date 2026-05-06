@@ -458,8 +458,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             position: absolute;
             left: -4px;
             top: 0;
+            bottom: 0;
             width: 18px;
-            height: 100%;
             cursor: pointer;
             border-radius: 8px 0 0 8px;
             z-index: 2;
@@ -3201,6 +3201,57 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.ui.renderResults();
               const html = DiceApp.nodes.results.innerHTML;
               return html.includes('die-critical-success') && html.includes('die-critical-failure');
+            }
+          },
+          {
+            name: "renderResults - sort handle stretches full result-item height",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d6',
+                mode: 'none',
+                rolls: [5, 2],
+                rollDetails: [
+                  {raw: 5, displayValue: 5, resultDisplay: '5', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 2, displayValue: 2, resultDisplay: '2', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false}
+                ],
+                sortState: 'desc',
+                total: 7,
+                min: 2,
+                max: 12,
+                sides: 6
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const handle = DiceApp.nodes.results.querySelector('.sort-handle');
+              if (!handle) return false;
+              const style = window.getComputedStyle(handle);
+              return style.top === '0px' && style.bottom === '0px';
+            }
+          },
+          {
+            name: "renderResults - sort indicator is beside Rolls label in cyan",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d6',
+                mode: 'none',
+                rolls: [4, 1],
+                rollDetails: [
+                  {raw: 4, displayValue: 4, resultDisplay: '4', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 1, displayValue: 1, resultDisplay: '1', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false}
+                ],
+                sortState: 'asc',
+                total: 5,
+                min: 2,
+                max: 12,
+                sides: 6
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const rowLabel = DiceApp.nodes.results.querySelector('.result-row--stacked .result-lbl');
+              const indicator = rowLabel?.querySelector('.sort-indicator');
+              if (!rowLabel || !indicator) return false;
+              const color = window.getComputedStyle(indicator).color;
+              return rowLabel.textContent.includes('Rolls:') && color === 'rgb(42, 227, 243)';
             }
           },
           {
