@@ -456,48 +456,46 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .sort-handle {
             position: absolute;
-            left: 0;
+            left: -4px;
             top: 0;
-            width: 14px;
+            width: 18px;
             height: 100%;
             cursor: pointer;
             border-radius: 8px 0 0 8px;
-            z-index: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            z-index: 2;
         }
 
         .sort-handle:hover {
             background: rgba(42, 227, 243, 0.18);
         }
 
-        .sort-handle[data-sort="desc"]::after {
+        .sort-handle[data-sort="desc"]::after,
+        .sort-handle[data-sort="asc"]::after {
             content: '';
-            display: block;
-            width: 0;
-            height: 0;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 6px solid #2AE3F3;
-            filter: drop-shadow(0 0 3px #2AE3F3);
+            position: absolute;
+            left: 0;
+            width: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .sort-handle[data-sort="desc"]::after {
+            border-left: 2px solid transparent;
+            border-right: 2px solid transparent;
+            border-top: 5px solid #ffffff;
+            filter: drop-shadow(0 0 2px rgba(255,255,255,0.8));
+            margin-top: 1px;
         }
 
         .sort-handle[data-sort="asc"]::after {
-            content: '';
-            display: block;
-            width: 0;
-            height: 0;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-bottom: 6px solid #2AE3F3;
-            filter: drop-shadow(0 0 3px #2AE3F3);
+            border-left: 2px solid transparent;
+            border-right: 2px solid transparent;
+            border-bottom: 5px solid #ffffff;
+            filter: drop-shadow(0 0 2px rgba(255,255,255,0.8));
+            margin-top: -1px;
         }
 
-        .sort-handle[data-sort="desc"] {
-            background: rgba(42, 227, 243, 0.10);
-        }
-
+        .sort-handle[data-sort="desc"],
         .sort-handle[data-sort="asc"] {
             background: rgba(42, 227, 243, 0.10);
         }
