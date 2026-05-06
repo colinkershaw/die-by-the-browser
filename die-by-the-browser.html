@@ -59,6 +59,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
             --clamp-floor: #FFFFFF;
             --clamp-ceil:  #FFD166;
+            --sort-handle-left-offset: -14px;
 
             --glow-core:      42, 227, 243;
             --glow-mid:        0, 180, 255;
@@ -451,6 +452,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             border-left: 4px solid #2AE3F3;
             animation:  slideIn 0.3s ease-out;
             color: #ffffff;
+            position: relative;
+        }
+
+        .sort-handle {
+            position: absolute;
+            left: var(--sort-handle-left-offset);
+            top: 0;
+            bottom: 0;
+            width: 18px;
+            cursor: pointer;
+            border-radius: 8px 0 0 8px;
+            z-index: 2;
+        }
+
+        .sort-handle:hover {
+            background: rgba(42, 227, 243, 0.18);
+        }
+
+        .sort-handle[data-sort="desc"],
+        .sort-handle[data-sort="asc"] {
+            background: rgba(42, 227, 243, 0.10);
         }
 
         @keyframes slideIn {
@@ -493,6 +515,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             letter-spacing: 0.6px;
             min-width: 50px;
             flex-shrink: 0;
+        }
+
+        .sort-indicator {
+            margin-left: 4px;
+            color: #2AE3F3;
+            font-size: 0.95em;
+            line-height: 1;
+            font-weight: 700;
         }
 
         .result-value {
@@ -795,12 +825,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
    *   NdX                   - basic roll
    *   NdX-M / NdX+M         - distributed modifier (applied to each die)
    *   NdX-M-F / NdX+M+C     - distributed modifier with floor/ceiling limit
+   *   NdX-M-F+C / NdX+M-F+C - distributed modifier with both floor and ceiling
    *   NdX -M / NdX +M       - aggregated modifier (applied to sum)
    *   NdX -M-F / NdX +M+C   - aggregated modifier with floor/ceiling limit
+   *   NdX -M-F+C / NdX +M-F+C - aggregated modifier with both floor and ceiling
    *   B NdX[...]             - batch: roll the expression B times
    *   Multiple collections separated by spaces
    *
-   * Symmetry Rule: the limit sign must match the modifier sign.
+   * Floor/Ceiling: any modifier may be followed by a floor (-F) and/or ceiling (+C) in any order.
    */
   const DiceNotation = {
     MAX_EXPLOSION_ITERATIONS: 20,
@@ -827,7 +859,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       let i = 0;
       let totalCount = 0;
       const pureIntRe = /^\d+$/;
-      const aggModRe = /^([+-])(\d+)(([+-])(\d+))?$/;
+      const aggModRe = /^([+-])(\d+)(([+-])(\d+)(([+-])(\d+))?)?$/;
 
       while (i < tokens.length) {
         let batchCount = 1;
@@ -851,7 +883,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (group.modifierMode !== 'none' && Math.abs(group.modifier) > DiceApp.MAX_MODIFIER) {
           return {root: null, error: 'MODIFIER_TOO_LARGE'};
         }
-        if (group.limit !== null && group.limit > DiceApp.MAX_MODIFIER) {
+        if ((group.floor !== null && group.floor > DiceApp.MAX_MODIFIER) ||
+            (group.ceiling !== null && group.ceiling > DiceApp.MAX_MODIFIER)) {
           return {root: null, error: 'MODIFIER_TOO_LARGE'};
         }
 
@@ -863,14 +896,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           if (aggMatch) {
             const modSign = aggMatch[1];
             group.modifier = parseInt(modSign + aggMatch[2], 10);
+            group.modifierSign = modSign;
             group.modifierMode = 'aggregated';
             if (Math.abs(group.modifier) > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
             if (aggMatch[3]) {
-              const lim = this._parseLimit(modSign, aggMatch[4], aggMatch[5]);
-              if (lim.error) return {root: null, error: lim.error};
-              group.limit = lim.limit;
-              group.limitSign = lim.limitSign;
-              if (group.limit > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
+              const firstLimSign = aggMatch[4];
+              const firstLimValue = parseInt(aggMatch[5], 10);
+              if (firstLimValue > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
+              if (firstLimSign === '-') { group.floor = firstLimValue; } else { group.ceiling = firstLimValue; }
+              if (aggMatch[6]) {
+                const secondLimSign = aggMatch[7];
+                const secondLimValue = parseInt(aggMatch[8], 10);
+                if (secondLimValue > DiceApp.MAX_MODIFIER) return {root: null, error: 'MODIFIER_TOO_LARGE'};
+                if (secondLimSign === '-') {
+                  if (group.floor !== null) return {root: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
+                  group.floor = secondLimValue;
+                } else {
+                  if (group.ceiling !== null) return {root: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
+                  group.ceiling = secondLimValue;
+                }
+              }
             }
             i++;
           }
@@ -893,8 +938,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         count: g.count,
         sides: g.sides,
         modifier: g.modifier,
-        limit: g.limit,
-        limitSign: g.limitSign,
+        modifierSign: g.modifierSign,
+        floor: g.floor,
+        ceiling: g.ceiling,
         modifierMode: g.modifierMode,
         explodeMode: g.explodeMode,
         explodeThreshold: g.explodeThreshold,
@@ -916,8 +962,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         count,
         sides,
         modifier: 0,
-        limit: null,
-        limitSign: null,
+        modifierSign: null,
+        floor: null,
+        ceiling: null,
         modifierMode: 'none',
         explodeMode: 'none',
         explodeThreshold: null,
@@ -926,13 +973,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         filterCount: null
       };
 
-      // Explosion: !, !!, !Y
+      // Explosion: !, !!, !Y, !!Y
       if (idx < token.length && token[idx] === '!') {
         idx++;
         if (idx < token.length && token[idx] === '!') {
           group.explodeMode = 'compound';
-          group.explodeThreshold = sides;
           idx++;
+          let thresholdDigits = '';
+          while (idx < token.length && /[0-9]/.test(token[idx])) {
+            thresholdDigits += token[idx];
+            idx++;
+          }
+          group.explodeThreshold = thresholdDigits ? parseInt(thresholdDigits, 10) : sides;
         } else {
           group.explodeMode = 'standard';
           let thresholdDigits = '';
@@ -976,9 +1028,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
         if (!modDigits) return {group: null, error: 'INVALID_FORMAT'};
         group.modifier = parseInt(modSign + modDigits, 10);
+        group.modifierSign = modSign;
         group.modifierMode = 'distributed';
 
-        if (idx < token.length && (token[idx] === '+' || token[idx] === '-')) {
+        for (let n = 0; n < 2; n++) {
+          if (idx >= token.length || (token[idx] !== '+' && token[idx] !== '-')) break;
+          if (idx + 1 >= token.length || !/[0-9]/.test(token[idx + 1])) break;
           const limSign = token[idx];
           idx++;
           let limDigits = '';
@@ -987,10 +1042,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             idx++;
           }
           if (!limDigits) return {group: null, error: 'INVALID_FORMAT'};
-          const lim = this._parseLimit(modSign, limSign, limDigits);
-          if (lim.error) return {group: null, error: lim.error};
-          group.limit = lim.limit;
-          group.limitSign = lim.limitSign;
+          const limValue = parseInt(limDigits, 10);
+          if (limSign === '-') {
+            if (group.floor !== null) return {group: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
+            group.floor = limValue;
+          } else {
+            if (group.ceiling !== null) return {group: null, error: 'INVALID_OPERATOR_FOR_LIMIT'};
+            group.ceiling = limValue;
+          }
         }
       }
 
@@ -1006,18 +1065,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     validate(input) {
       const {collections, error} = this.parse(input);
       return {valid: collections !== null, error};
-    },
-
-    /**
-     * Parse and validate a limit token, enforcing the symmetry rule.
-     * @param {string} modSign - '+' or '-' (the modifier's sign)
-     * @param {string} limSign - '+' or '-' (the limit's sign)
-     * @param {string} limitVal - Numeric string for the limit value
-     * @returns {Object} {limit, limitSign} on success, or {error} on failure
-     */
-    _parseLimit(modSign, limSign, limitVal) {
-      if (limSign !== modSign) return {error: 'INVALID_OPERATOR_FOR_LIMIT'};
-      return {limit: parseInt(limitVal, 10), limitSign: limSign};
     },
 
     _rollDie(sides) {
@@ -1095,24 +1142,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * @param {number} count
      * @param {number} sides
      * @param {number} modifier
-     * @param {number|null} limit
-     * @param {string|null} limitSign - '+' or '-'
+     * @param {number|null} floor - minimum clamp value (null if none)
+     * @param {number|null} ceiling - maximum clamp value (null if none)
      * @param {string} modifierMode - 'none'|'distributed'|'aggregated'
      * @param {Object} advanced - {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
      * @returns {string}
      */
-    buildFormula(count, sides, modifier, limit, limitSign, modifierMode, advanced = {}) {
+    buildFormula(count, sides, modifier, floor, ceiling, modifierMode, advanced = {}) {
       let s = `${count}d${sides}`;
       const {
         explodeMode = 'none',
         explodeThreshold = null,
         filterAction = null,
         filterDirection = null,
-        filterCount = null
+        filterCount = null,
+        modifierSign = null
       } = advanced;
 
       if (explodeMode === 'compound') {
-        s += '!!';
+        s += (explodeThreshold !== null && explodeThreshold !== sides) ? `!!${explodeThreshold}` : '!!';
       } else if (explodeMode === 'standard') {
         s += (explodeThreshold !== null && explodeThreshold !== sides) ? `!${explodeThreshold}` : '!';
       }
@@ -1124,11 +1172,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       }
 
       if (modifierMode !== 'none') {
-        const modStr = modifier >= 0 ? `+${modifier}` : `${modifier}`;
+        const modStr = modifier === 0
+          ? (modifierSign === '-' ? '-0' : '+0')
+          : (modifier >= 0 ? `+${modifier}` : `${modifier}`);
         s += modifierMode === 'aggregated' ? ` ${modStr}` : modStr;
-        if (limit !== null) {
-          s += `${limitSign}${limit}`;
-        }
+        if (floor !== null) { s += `-${floor}`; }
+        if (ceiling !== null) { s += `+${ceiling}`; }
       }
       return s;
     },
@@ -1219,20 +1268,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * Compute result for distributed modifier mode.
      * @private
      */
-    _computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
+    _computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling) {
       const effectiveCount = keptDetails.length;
       const dieResults = rollDetails.map(d => {
         const modified = d.displayValue + modifier;
         let result = modified;
         let indicator = '';
-        if (d.kept && limit !== null) {
-          if (limitSign === '-' && modified < limit) {
-            result = limit;
-            indicator = '*';
-          } else if (limitSign === '+' && modified > limit) {
-            result = limit;
-            indicator = '^';
-          }
+        if (d.kept) {
+          if (floor !== null && result < floor) { result = floor; indicator = '*'; }
+          if (ceiling !== null && result > ceiling) { result = ceiling; indicator = '^'; }
         }
         return {
           raw: d.raw,
@@ -1257,24 +1301,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       const perDieMin = 1 + modifier;
       const perDieMax = sides + modifier;
       const rangeMod = {min: effectiveCount * perDieMin, max: effectiveCount * perDieMax};
+      const hasClamp = floor !== null || ceiling !== null;
       let limitMin = perDieMin;
       let limitMax = perDieMax;
-      if (limit !== null) {
-        if (limitSign === '-') {
-          limitMin = Math.max(perDieMin, limit);
-          limitMax = Math.max(perDieMax, limit);
-        } else {
-          limitMin = Math.min(perDieMin, limit);
-          limitMax = Math.min(perDieMax, limit);
-        }
+      if (floor !== null) {
+        limitMin = Math.max(limitMin, floor);
+        limitMax = Math.max(limitMax, floor);
       }
-      const rangeLimit = limit !== null
+      if (ceiling !== null) {
+        limitMin = Math.min(limitMin, ceiling);
+        limitMax = Math.min(limitMax, ceiling);
+      }
+      const rangeLimit = hasClamp
         ? {min: effectiveCount * limitMin, max: effectiveCount * limitMax}
         : null;
 
       return {
         formula, mode: 'distributed', dieResults, rollDetails, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
-        limit, limitSign, hasClamp: limit !== null
+        floor, ceiling, hasClamp
       };
     },
 
@@ -1282,43 +1326,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * Compute result for aggregated modifier mode.
      * @private
      */
-    _computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign) {
+    _computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling) {
       const effectiveCount = keptDetails.length;
       const rolls = rollDetails.map(d => d.raw);
       const rawSum = keptDetails.reduce((s, d) => s + d.displayValue, 0);
       const modifiedSum = rawSum + modifier;
       let total = modifiedSum;
       let indicator = '';
-      if (limit !== null) {
-        if (limitSign === '-' && modifiedSum < limit) {
-          total = limit;
-          indicator = '*';
-        } else if (limitSign === '+' && modifiedSum > limit) {
-          total = limit;
-          indicator = '^';
-        }
-      }
+      if (floor !== null && total < floor) { total = floor; indicator = '*'; }
+      if (ceiling !== null && total > ceiling) { total = ceiling; indicator = '^'; }
       const rawMin = effectiveCount;
       const rawMax = effectiveCount * sides;
       const rangeRaw = {min: rawMin, max: rawMax};
       const modifiedMin = rawMin + modifier;
       const modifiedMax = rawMax + modifier;
       const rangeMod = {min: modifiedMin, max: modifiedMax};
+      const hasClamp = floor !== null || ceiling !== null;
       let limitMin = modifiedMin;
       let limitMax = modifiedMax;
-      if (limit !== null) {
-        if (limitSign === '-') {
-          limitMin = Math.max(modifiedMin, limit);
-          limitMax = Math.max(modifiedMax, limit);
-        } else {
-          limitMin = Math.min(modifiedMin, limit);
-          limitMax = Math.min(modifiedMax, limit);
-        }
+      if (floor !== null) {
+        limitMin = Math.max(limitMin, floor);
+        limitMax = Math.max(limitMax, floor);
       }
-      const rangeLimit = limit !== null ? {min: limitMin, max: limitMax} : null;
+      if (ceiling !== null) {
+        limitMin = Math.min(limitMin, ceiling);
+        limitMax = Math.min(limitMax, ceiling);
+      }
+      const rangeLimit = hasClamp ? {min: limitMin, max: limitMax} : null;
       return {
         formula, mode: 'aggregated', rolls, rollDetails, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, sides,
-        limit, limitSign, hasClamp: limit !== null
+        floor, ceiling, hasClamp
       };
     },
 
@@ -1330,13 +1367,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * @returns {Object} Result object
      */
     computeResult(rawRolls, {
-      count, sides, modifier, limit, limitSign, modifierMode,
+      count, sides, modifier, floor = null, ceiling = null, modifierMode, modifierSign = null,
       explodeMode = 'none', explodeThreshold = null,
       filterAction = null, filterDirection = null, filterCount = null
     }, nextRollFn = null) {
       const formula = DiceNotation.buildFormula(
-        count, sides, modifier, limit, limitSign, modifierMode,
-        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount}
+        count, sides, modifier, floor, ceiling, modifierMode,
+        {explodeMode, explodeThreshold, filterAction, filterDirection, filterCount, modifierSign}
       );
 
       const rollFn = typeof nextRollFn === 'function' ? nextRollFn : (s) => DiceNotation._rollDie(s);
@@ -1362,10 +1399,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       }
 
       if (modifierMode === 'distributed') {
-        return this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
+        return this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling);
       }
 
-      return this._computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, limit, limitSign);
+      return this._computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling);
     },
 
     /**
@@ -1378,9 +1415,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         'INVALID_FORMAT': 'Invalid dice notation. Use format like "3d6 4d12"',
         'TOO_MANY_DICE': `Too many dice! Maximum allowed is ${DiceApp.MAX_DICE_COUNT.toLocaleString()}.`,
         'TOO_MANY_SIDES': `Too many sides! Maximum allowed is ${DiceApp.MAX_DIE_SIDES.toLocaleString()}.`,
-        'INVALID_OPERATOR_FOR_LIMIT': 'Invalid operator for limit. Limit sign must match modifier sign (e.g., 3d6-5-1 or 3d6+5+10).',
+        'INVALID_OPERATOR_FOR_LIMIT': 'Invalid operator for limit. Cannot specify the same limit type twice (e.g., two floors or two ceilings).',
         'MODIFIER_TOO_LARGE': `Modifier or limit too large! Maximum allowed is ${DiceApp.MAX_MODIFIER.toLocaleString()}.`,
-        'INVALID_EXPLODE_THRESHOLD': 'Invalid explosion threshold. Use !Y where Y is at least 2 and no greater than die sides.'
+        'INVALID_EXPLODE_THRESHOLD': 'Invalid explosion threshold. Use !Y or !!Y where Y is at least 2 and no greater than die sides.'
       };
       return messages[errorCode] || 'Unknown error';
     }
@@ -1658,7 +1695,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         };
 
         DiceApp.perf.mark('formatStart');
-        const resultsHTML = state.rollResults.map(r => {
+        const resultsHTML = state.rollResults.map((r, rIdx) => {
             /**
              * Render a game-result value with floor/ceiling visual decoration.
              * Model stores '*' (floor) and '^' (ceiling); View renders underline/overline.
@@ -1687,14 +1724,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               return `<span class="${classes.join(' ')}">${inner}</span>`;
             };
 
+            const sortState = r.sortState || 'original';
+            const sortStateLabel = sortState === 'desc' ? 'descending' : sortState === 'asc' ? 'ascending' : 'as rolled';
+            const sortHandle = `<div class="sort-handle" role="button" aria-label="Sort order: ${sortStateLabel} (click to cycle)" data-sort="${sortState === 'original' ? '' : sortState}" title="Sort dice (click to cycle: descending → ascending → original)"></div>`;
+            const sortGlyph = sortState === 'desc' ? '▼' : sortState === 'asc' ? '▲' : '';
+            const rollsLabel = `<span class="result-lbl">Rolls:${sortGlyph ? `<span class="sort-indicator" aria-hidden="true">${sortGlyph}</span>` : ''}</span>`;
+            const getSortedDetails = (arr) => {
+              if (!arr) return arr;
+              if (sortState === 'desc') return arr.slice().sort((a, b) => (b.displayValue ?? b.result ?? 0) - (a.displayValue ?? a.result ?? 0));
+              if (sortState === 'asc') return arr.slice().sort((a, b) => (a.displayValue ?? a.result ?? 0) - (b.displayValue ?? b.result ?? 0));
+              return arr;
+            };
+
             if (r.mode === 'distributed') {
               const modStr = r.modifier >= 0 ? `+${r.modifier}` : `${r.modifier}`;
 
               // Theoretical max game-result width (digits only — indicator is now text-decoration).
-              // A floor limit (-) is the true minimum displayed value (result ≥ limit by definition).
-              // A ceiling limit (+) is the true maximum displayed value (result ≤ limit by definition).
-              const theoreticalMinGame = r.limit !== null && r.limitSign === '-' ? r.limit : 1 + r.modifier;
-              const theoreticalMaxGame = r.limit !== null && r.limitSign === '+' ? r.limit : r.sides + r.modifier;
+              // A floor clamp (-) is the true minimum displayed value (result ≥ floor by definition).
+              // A ceiling clamp (+) is the true maximum displayed value (result ≤ ceiling by definition).
+              const theoreticalMinGame = r.floor !== null ? r.floor : 1 + r.modifier;
+              const theoreticalMaxGame = r.ceiling !== null ? r.ceiling : r.sides + r.modifier;
               const hasCompoundExplode = r.dieResults.some(d => d.compound);
               const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
               const maxGameWidth = hasCompoundExplode
@@ -1702,7 +1751,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 : Math.max(String(theoreticalMinGame).length, String(theoreticalMaxGame).length);
               const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
 
-              const rollsDisplay = r.dieResults.map(d => {
+              const rollsDisplay = getSortedDetails(r.dieResults).map(d => {
                 const criticalClass = d.isCriticalSuccess
                   ? 'die-critical-success'
                   : d.isCriticalFailure
@@ -1726,10 +1775,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               }).join('');
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
-        <div class="result-item">
+        <div class="result-item" data-result-index="${rIdx}">
+          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked">${rollsLabel}<span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
@@ -1742,7 +1792,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // rollDetails exists for current compute paths; fallback preserves compatibility
               // with any older saved/result objects that only provide r.rolls.
               const rollsDisplay = r.rollDetails
-                ? r.rollDetails.map(d => {
+                ? getSortedDetails(r.rollDetails).map(d => {
                   const criticalClass = d.isCriticalSuccess
                     ? 'die-critical-success'
                     : d.isCriticalFailure
@@ -1768,18 +1818,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
-        <div class="result-item">
+        <div class="result-item" data-result-index="${rIdx}">
+          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${decoratedTotal}</span></div>
           <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked">${rollsLabel}<span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
             } else {
               // mode === 'none' (basic roll, no modifier)
               const rollsDisplay = r.rollDetails
-                ? r.rollDetails.map(d => {
+                ? getSortedDetails(r.rollDetails).map(d => {
                   const criticalClass = d.isCriticalSuccess
                     ? 'die-critical-success'
                     : d.isCriticalFailure
@@ -1801,10 +1852,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 }).join('')
                 : rollValSpans(r.rolls, r.sides);
               return `
-        <div class="result-item">
+        <div class="result-item" data-result-index="${rIdx}">
+          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked">${rollsLabel}<span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
@@ -1949,13 +2001,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           DiceApp.perf.mark('computeStart');
           for (const coll of parsed) {
             const {
-              batchCount, count, sides, modifier, limit, limitSign, modifierMode,
+              batchCount, count, sides, modifier, floor, ceiling, modifierMode, modifierSign,
               explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
             } = coll;
             for (let b = 0; b < batchCount; b++) {
               const rawRolls = DiceNotation.roll(count, sides);
               const result = DiceNotation.computeResult(rawRolls, {
-                count, sides, modifier, limit, limitSign, modifierMode,
+                count, sides, modifier, floor, ceiling, modifierMode, modifierSign,
                 explodeMode, explodeThreshold, filterAction, filterDirection, filterCount
               });
               nextResults.push(result);
@@ -2480,7 +2532,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("3d4-3");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === -3 && c[0].modifierMode === 'distributed' && c[0].limit === null;
+                c[0].modifier === -3 && c[0].modifierMode === 'distributed' && c[0].floor === null && c[0].ceiling === null;
             }
           },
           {
@@ -2489,7 +2541,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("3d4-3-1");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === -3 && c[0].limit === 1 && c[0].limitSign === '-' &&
+                c[0].modifier === -3 && c[0].floor === 1 && c[0].ceiling === null &&
                 c[0].modifierMode === 'distributed';
             }
           },
@@ -2499,7 +2551,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("3d4+5");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === 5 && c[0].modifierMode === 'distributed' && c[0].limit === null;
+                c[0].modifier === 5 && c[0].modifierMode === 'distributed' && c[0].floor === null && c[0].ceiling === null;
             }
           },
           {
@@ -2508,8 +2560,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("3d4+5+10");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === 5 && c[0].limit === 10 && c[0].limitSign === '+' &&
+                c[0].modifier === 5 && c[0].ceiling === 10 && c[0].floor === null &&
                 c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse distributed negative zero preserves modifier sign",
+            test: () => {
+              const result = DiceNotation.parse("4d8-0-3");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 0 && c[0].modifierSign === '-' && c[0].floor === 3 &&
+                c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse aggregated negative zero preserves modifier sign",
+            test: () => {
+              const result = DiceNotation.parse("4d8 -0-3");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 0 && c[0].modifierSign === '-' && c[0].floor === 3 &&
+                c[0].modifierMode === 'aggregated';
             }
           },
           {
@@ -2518,7 +2590,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("3d4 -3");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === -3 && c[0].modifierMode === 'aggregated' && c[0].limit === null;
+                c[0].modifier === -3 && c[0].modifierMode === 'aggregated' && c[0].floor === null && c[0].ceiling === null;
             }
           },
           {
@@ -2527,7 +2599,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("3d4 -3-1");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === -3 && c[0].limit === 1 && c[0].limitSign === '-' &&
+                c[0].modifier === -3 && c[0].floor === 1 && c[0].ceiling === null &&
                 c[0].modifierMode === 'aggregated';
             }
           },
@@ -2537,7 +2609,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("3d4 +5");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === 5 && c[0].modifierMode === 'aggregated' && c[0].limit === null;
+                c[0].modifier === 5 && c[0].modifierMode === 'aggregated' && c[0].floor === null && c[0].ceiling === null;
             }
           },
           {
@@ -2546,28 +2618,51 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("4d6 +5+20");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].modifier === 5 && c[0].limit === 20 && c[0].limitSign === '+' &&
+                c[0].modifier === 5 && c[0].ceiling === 20 && c[0].floor === null &&
                 c[0].modifierMode === 'aggregated';
             }
           },
           {
-            name: "Reject invalid limit operator - symmetry rule (+ modifier, - limit)",
+            name: "Parse distributed modifier with both floor and ceiling",
             test: () => {
-              const result = DiceNotation.parse("3d6+5-1");
+              const result = DiceNotation.parse("3d6+3-2+8");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 3 && c[0].floor === 2 && c[0].ceiling === 8 &&
+                c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse distributed modifier with both ceiling and floor (reversed order)",
+            test: () => {
+              const result = DiceNotation.parse("3d12-2-3+9");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === -2 && c[0].floor === 3 && c[0].ceiling === 9 &&
+                c[0].modifierMode === 'distributed';
+            }
+          },
+          {
+            name: "Parse aggregated modifier with both floor and ceiling",
+            test: () => {
+              const result = DiceNotation.parse("3d6 +3-2+8");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].modifier === 3 && c[0].floor === 2 && c[0].ceiling === 8 &&
+                c[0].modifierMode === 'aggregated';
+            }
+          },
+          {
+            name: "Reject duplicate floor in distributed modifier",
+            test: () => {
+              const result = DiceNotation.parse("3d6+5-1-2");
               return result.collections === null && result.error === 'INVALID_OPERATOR_FOR_LIMIT';
             }
           },
           {
-            name: "Reject invalid limit operator - symmetry rule (- modifier, + limit)",
+            name: "Reject duplicate ceiling in distributed modifier",
             test: () => {
-              const result = DiceNotation.parse("3d6-5+1");
-              return result.collections === null && result.error === 'INVALID_OPERATOR_FOR_LIMIT';
-            }
-          },
-          {
-            name: "Reject invalid limit operator - aggregated symmetry",
-            test: () => {
-              const result = DiceNotation.parse("3d6 +5-1");
+              const result = DiceNotation.parse("3d6+5+10+20");
               return result.collections === null && result.error === 'INVALID_OPERATOR_FOR_LIMIT';
             }
           },
@@ -2586,7 +2681,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("2 3d4-2-0");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].batchCount === 2 && c[0].modifier === -2 && c[0].limit === 0 &&
+                c[0].batchCount === 2 && c[0].modifier === -2 && c[0].floor === 0 &&
                 c[0].modifierMode === 'distributed';
             }
           },
@@ -2596,7 +2691,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const result = DiceNotation.parse("2 3d4 -2-0");
               const c = result.collections;
               return c !== null && c.length === 1 &&
-                c[0].batchCount === 2 && c[0].modifier === -2 && c[0].limit === 0 &&
+                c[0].batchCount === 2 && c[0].modifier === -2 && c[0].floor === 0 &&
                 c[0].modifierMode === 'aggregated';
             }
           },
@@ -2633,6 +2728,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const c = result.collections;
               return c !== null && c.length === 1 &&
                 c[0].explodeMode === 'compound' && c[0].explodeThreshold === 6;
+            }
+          },
+          {
+            name: "Parse compound threshold exploding notation - !!Y",
+            test: () => {
+              const result = DiceNotation.parse("3d6!!3");
+              const c = result.collections;
+              return c !== null && c.length === 1 &&
+                c[0].explodeMode === 'compound' && c[0].explodeThreshold === 3;
+            }
+          },
+          {
+            name: "Reject invalid compound threshold exploding notation - below minimum",
+            test: () => {
+              const result = DiceNotation.parse("3d6!!1");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
+            }
+          },
+          {
+            name: "Reject invalid compound threshold exploding notation - above sides",
+            test: () => {
+              const result = DiceNotation.parse("3d6!!7");
+              return result.collections === null && result.error === 'INVALID_EXPLODE_THRESHOLD';
             }
           },
           {
@@ -2809,7 +2927,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "computeResult - precedence explode then filter then modifier",
             test: () => {
               const result = DiceNotation.computeResult([6, 5], {
-                count: 2, sides: 6, modifier: 1, limit: null, limitSign: null, modifierMode: 'distributed',
+                count: 2, sides: 6, modifier: 1, modifierMode: 'distributed',
                 explodeMode: 'standard', explodeThreshold: 6,
                 filterAction: 'keep', filterDirection: 'high', filterCount: 1
               }, () => 4);
@@ -2829,7 +2947,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // 3d4-3-1: rolls [4, 1, 2], floor=1
               // die=4: 4-3=1 (not clamped), die=1: 1-3=-2 → clamp to 1 (*), die=2: 2-3=-1 → clamp to 1 (*)
               const result = DiceNotation.computeResult([4, 1, 2], {
-                count: 3, sides: 4, modifier: -3, limit: 1, limitSign: '-', modifierMode: 'distributed'
+                count: 3, sides: 4, modifier: -3, floor: 1, modifierMode: 'distributed'
               });
               const d = result.dieResults;
               return result.mode === 'distributed' &&
@@ -2845,7 +2963,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               // 2d4+5+7: rolls [3, 4], ceiling=7
               // die=3: 3+5=8 → clamp to 7 (^), die=4: 4+5=9 → clamp to 7 (^)
               const result = DiceNotation.computeResult([3, 4], {
-                count: 2, sides: 4, modifier: 5, limit: 7, limitSign: '+', modifierMode: 'distributed'
+                count: 2, sides: 4, modifier: 5, ceiling: 7, modifierMode: 'distributed'
               });
               const d = result.dieResults;
               return result.mode === 'distributed' &&
@@ -2859,7 +2977,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 2d6-2 (no limit): rolls [4, 3] → 4-2=2, 3-2=1
               const result = DiceNotation.computeResult([4, 3], {
-                count: 2, sides: 6, modifier: -2, limit: null, limitSign: null, modifierMode: 'distributed'
+                count: 2, sides: 6, modifier: -2, modifierMode: 'distributed'
               });
               const d = result.dieResults;
               return result.mode === 'distributed' &&
@@ -2873,7 +2991,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 3d4 -5-3: rolls [1, 1, 1], rawSum=3, 3-5=-2 < floor=3 → total=3 (*)
               const result = DiceNotation.computeResult([1, 1, 1], {
-                count: 3, sides: 4, modifier: -5, limit: 3, limitSign: '-', modifierMode: 'aggregated'
+                count: 3, sides: 4, modifier: -5, floor: 3, modifierMode: 'aggregated'
               });
               return result.mode === 'aggregated' &&
                 result.rawSum === 3 && result.modifiedSum === -2 &&
@@ -2885,7 +3003,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 10d12 -1-4: floor=4, min achievable=9 → floor never triggers; no indicator
               const result = DiceNotation.computeResult([6, 6, 6, 6, 6, 6, 6, 6, 6, 6], {
-                count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
+                count: 10, sides: 12, modifier: -1, floor: 4, modifierMode: 'aggregated'
               });
               // rawSum=60, modifiedSum=59; 59 > 4 → no clamping
               return result.indicator === '' && result.total === 59;
@@ -2896,7 +3014,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 10d12 -1-4: raw=10..120, mod=9..119, limit=9..119 (non-constraining floor)
               const result = DiceNotation.computeResult([6, 6, 6, 6, 6, 6, 6, 6, 6, 6], {
-                count: 10, sides: 12, modifier: -1, limit: 4, limitSign: '-', modifierMode: 'aggregated'
+                count: 10, sides: 12, modifier: -1, floor: 4, modifierMode: 'aggregated'
               });
               return result.rangeRaw.min === 10 && result.rangeRaw.max === 120 &&
                 result.rangeMod.min === 9 && result.rangeMod.max === 119 &&
@@ -2909,7 +3027,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 3d6-0 (floor=0, modifier=0): raw=3..18, mod=3..18, limit=3..18
               const result = DiceNotation.computeResult([3, 3, 3], {
-                count: 3, sides: 6, modifier: 0, limit: 0, limitSign: '-', modifierMode: 'distributed'
+                count: 3, sides: 6, modifier: 0, floor: 0, modifierMode: 'distributed'
               });
               return result.rangeRaw.min === 3 && result.rangeRaw.max === 18 &&
                 result.rangeMod.min === 3 && result.rangeMod.max === 18 &&
@@ -2922,7 +3040,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 4d6 +5+20: rolls [6, 5, 4, 2], rawSum=17, 17+5=22 > ceiling=20 → total=20 (^)
               const result = DiceNotation.computeResult([6, 5, 4, 2], {
-                count: 4, sides: 6, modifier: 5, limit: 20, limitSign: '+', modifierMode: 'aggregated'
+                count: 4, sides: 6, modifier: 5, ceiling: 20, modifierMode: 'aggregated'
               });
               return result.mode === 'aggregated' &&
                 result.rawSum === 17 && result.modifiedSum === 22 &&
@@ -2934,13 +3052,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 2d6 +3+12: raw=2..12, mod=5..15, limit=5..12
               const result = DiceNotation.computeResult([3, 3], {
-                count: 2, sides: 6, modifier: 3, limit: 12, limitSign: '+', modifierMode: 'aggregated'
+                count: 2, sides: 6, modifier: 3, ceiling: 12, modifierMode: 'aggregated'
               });
               return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
                 result.rangeMod.min === 5 && result.rangeMod.max === 15 &&
                 result.rangeLimit !== null &&
                 result.rangeLimit.min === 5 && result.rangeLimit.max === 12 &&
-                result.limit === 12 && result.limitSign === '+' && result.hasClamp === true;
+                result.ceiling === 12 && result.floor === null && result.hasClamp === true;
             }
           },
           {
@@ -2948,7 +3066,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 3d4-3-1: raw=3..12, mod=-6..3, limit=3..3
               const result = DiceNotation.computeResult([4, 1, 2], {
-                count: 3, sides: 4, modifier: -3, limit: 1, limitSign: '-', modifierMode: 'distributed'
+                count: 3, sides: 4, modifier: -3, floor: 1, modifierMode: 'distributed'
               });
               return result.rangeRaw.min === 3 && result.rangeRaw.max === 12 &&
                 result.rangeMod.min === -6 && result.rangeMod.max === 3 &&
@@ -2961,7 +3079,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 2d4+5+7: raw=2..8, mod=12..18, limit=12..14
               const result = DiceNotation.computeResult([3, 4], {
-                count: 2, sides: 4, modifier: 5, limit: 7, limitSign: '+', modifierMode: 'distributed'
+                count: 2, sides: 4, modifier: 5, ceiling: 7, modifierMode: 'distributed'
               });
               return result.rangeRaw.min === 2 && result.rangeRaw.max === 8 &&
                 result.rangeMod.min === 12 && result.rangeMod.max === 18 &&
@@ -2974,12 +3092,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 2d6-2 (no explicit limit): raw=2..12, mod=-2..8, no limit range
               const result = DiceNotation.computeResult([4, 3], {
-                count: 2, sides: 6, modifier: -2, limit: null, limitSign: null, modifierMode: 'distributed'
+                count: 2, sides: 6, modifier: -2, modifierMode: 'distributed'
               });
               return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
                 result.rangeMod.min === -2 && result.rangeMod.max === 8 &&
                 result.rangeLimit === null &&
-                result.limit === null && result.limitSign === null && result.hasClamp === false;
+                result.floor === null && result.ceiling === null && result.hasClamp === false;
             }
           },
           {
@@ -2987,7 +3105,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 10d100+10: raw=10..1000, mod=110..1100, no limit range
               const result = DiceNotation.computeResult([50, 50, 50, 50, 50, 50, 50, 50, 50, 50], {
-                count: 10, sides: 100, modifier: 10, limit: null, limitSign: null, modifierMode: 'distributed'
+                count: 10, sides: 100, modifier: 10, modifierMode: 'distributed'
               });
               return result.rangeRaw.min === 10 && result.rangeRaw.max === 1000 &&
                 result.rangeMod.min === 110 && result.rangeMod.max === 1100 &&
@@ -2999,7 +3117,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 10d100+10+101: raw=10..1000, mod=110..1100, limit=110..1010
               const result = DiceNotation.computeResult([50, 50, 50, 50, 50, 50, 50, 50, 50, 50], {
-                count: 10, sides: 100, modifier: 10, limit: 101, limitSign: '+', modifierMode: 'distributed'
+                count: 10, sides: 100, modifier: 10, ceiling: 101, modifierMode: 'distributed'
               });
               return result.rangeRaw.min === 10 && result.rangeRaw.max === 1000 &&
                 result.rangeMod.min === 110 && result.rangeMod.max === 1100 &&
@@ -3012,7 +3130,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 2d4-1-10: per-die modified range is 0..3, floor=10 forces each die to 10 => total 20..20
               const result = DiceNotation.computeResult([4, 1], {
-                count: 2, sides: 4, modifier: -1, limit: 10, limitSign: '-', modifierMode: 'distributed'
+                count: 2, sides: 4, modifier: -1, floor: 10, modifierMode: 'distributed'
               });
               return result.rangeRaw.min === 2 && result.rangeRaw.max === 8 &&
                 result.rangeLimit !== null &&
@@ -3024,7 +3142,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             test: () => {
               // 2d6 +3+1: modified range is 5..15, ceiling=1 forces total to 1..1
               const result = DiceNotation.computeResult([6, 6], {
-                count: 2, sides: 6, modifier: 3, limit: 1, limitSign: '+', modifierMode: 'aggregated'
+                count: 2, sides: 6, modifier: 3, ceiling: 1, modifierMode: 'aggregated'
               });
               return result.rangeRaw.min === 2 && result.rangeRaw.max === 12 &&
                 result.rangeLimit !== null &&
@@ -3044,8 +3162,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 rangeMod: {min: -2, max: 8},
                 rangeLimit: null,
                 sides: 6,
-                limit: null,
-                limitSign: null,
+                floor: null,
+                ceiling: null,
                 hasClamp: false
               }];
               DiceApp.state.errorMessage = '';
@@ -3316,12 +3434,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           },
           {
             name: "buildFormula - distributed penalty with floor",
-            test: () => DiceNotation.buildFormula(3, 4, -3, 1, '-', 'distributed') === '3d4-3-1'
+            test: () => DiceNotation.buildFormula(3, 4, -3, 1, null, 'distributed') === '3d4-3-1'
           },
           {
             name: "buildFormula - aggregated bonus with ceiling",
-            test: () => DiceNotation.buildFormula(4, 6, 5, 20, '+', 'aggregated') === '4d6 +5+20'
+            test: () => DiceNotation.buildFormula(4, 6, 5, null, 20, 'aggregated') === '4d6 +5+20'
           },
+          {
+            name: "buildFormula - compound explosion with threshold",
+            test: () => DiceNotation.buildFormula(3, 6, 0, null, null, 'none', {explodeMode: 'compound', explodeThreshold: 5}) === '3d6!!5'
+          },
+          {
+            name: "buildFormula - compound explosion without threshold uses default",
+            test: () => DiceNotation.buildFormula(3, 6, 0, null, null, 'none', {explodeMode: 'compound', explodeThreshold: 6}) === '3d6!!'
+          },
+          {
+            name: "buildFormula - distributed modifier with floor and ceiling",
+            test: () => DiceNotation.buildFormula(3, 6, 3, 2, 8, 'distributed') === '3d6+3-2+8'
+          },
+          {
+            name: "buildFormula - preserves negative zero sign when provided",
+            test: () => DiceNotation.buildFormula(4, 8, 0, 3, null, 'distributed', {modifierSign: '-'}) === '4d8-0-3'
+          },
+
           {
             name: "Enter and Escape keys are ignored during rolling",
             async: true,
@@ -3993,6 +4128,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         DiceApp.nodes.clearBtn.addEventListener('click', () => DiceApp.actions.clear());
         DiceApp.nodes.hamburger.addEventListener('click', () => DiceApp.ui.toggleMenu());
         DiceApp.nodes.menu.addEventListener('click', (e) => DiceApp.handlers.onMenuClick(e));
+        DiceApp.nodes.results.addEventListener('click', (e) => {
+          const handle = e.target.closest('.sort-handle');
+          if (!handle) return;
+          const resultItem = handle.closest('.result-item');
+          if (!resultItem) return;
+          const idx = parseInt(resultItem.dataset.resultIndex, 10);
+          const result = DiceApp.state.rollResults[idx];
+          if (!result) return;
+          const cycleOrder = ['original', 'desc', 'asc'];
+          const current = result.sortState || 'original';
+          result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
+          DiceApp.ui.renderResults();
+        });
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
         window.addEventListener('resize', () => {
           DiceApp.actions.detectInputMode();

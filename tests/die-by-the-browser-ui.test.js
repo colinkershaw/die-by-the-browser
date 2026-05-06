@@ -103,6 +103,64 @@ test.describe('DiceApp - Desktop Mode', () => {
     expect(diceCount).toBe(3);
   });
 
+  test('should keep left blue bar area tappable for sorting', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+
+    const dimensions = await page.evaluate(() => {
+      const handle = document.querySelector('.sort-handle');
+      const resultItem = handle?.closest('.result-item');
+      if (!handle || !resultItem) return null;
+      const handleRect = handle.getBoundingClientRect();
+      const itemRect = resultItem.getBoundingClientRect();
+      return {
+        handleHeight: handleRect.height,
+        itemHeight: itemRect.height,
+        handleLeft: handleRect.left,
+        itemLeft: itemRect.left,
+        itemTop: itemRect.top
+      };
+    });
+
+    expect(dimensions).not.toBeNull();
+    expect(dimensions.handleHeight).toBeGreaterThan(0);
+    expect(Math.abs(dimensions.itemHeight - dimensions.handleHeight)).toBeLessThanOrEqual(2);
+
+    // Preserve previous wider left-bar tap area (extends left of the card edge).
+    expect(dimensions.itemLeft - dimensions.handleLeft).toBeGreaterThanOrEqual(10);
+
+    const sortHandle = page.locator('.sort-handle').first();
+    await expect(sortHandle).toHaveAttribute('data-sort', '');
+
+    // Click the visible left blue border area, not the arrow glyph.
+    await page.mouse.click(dimensions.itemLeft + 2, dimensions.itemTop + (dimensions.itemHeight / 2));
+
+    await expect(sortHandle).toHaveAttribute('data-sort', 'desc');
+  });
+
+  test('should show cyan sort arrow beside Rolls label after sort toggle', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+
+    await page.click('.sort-handle');
+
+    const indicatorState = await page.evaluate(() => {
+      const label = document.querySelector('.result-row--stacked .result-lbl');
+      const indicator = label?.querySelector('.sort-indicator');
+      if (!label || !indicator) return null;
+      return {
+        glyph: indicator.textContent,
+        color: getComputedStyle(indicator).color,
+        isAdjacentToRollsText: (indicator.previousSibling?.textContent || '').includes('Rolls:')
+      };
+    });
+
+    expect(indicatorState).not.toBeNull();
+    expect(indicatorState.glyph).toBe('▼');
+    expect(indicatorState.color).toBe('rgb(42, 227, 243)');
+    expect(indicatorState.isAdjacentToRollsText).toBe(true);
+  });
+
   test('should show error for invalid notation', async ({page}) => {
     await page.fill('#diceInput', 'invalid');
     await page.click('#rollBtn');
