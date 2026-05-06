@@ -175,6 +175,7 @@ test.describe('DiceApp - Desktop Mode', () => {
 
       return {
         bodySorting: document.body.classList.contains('is-sorting'),
+        isSortingAtDoubleClick: DiceApp.state.isSorting,
         targetClass: firstItem.classList.contains('is-sorting-target'),
         targetFilter: getComputedStyle(firstItem).filter,
         sortStateAfterDoubleClick: DiceApp.state.rollResults[0]?.sortState || null
@@ -183,11 +184,12 @@ test.describe('DiceApp - Desktop Mode', () => {
 
     expect(sortingState).not.toBeNull();
     expect(sortingState.bodySorting).toBe(true);
+    expect(sortingState.isSortingAtDoubleClick).toBe(true);
     expect(sortingState.targetClass).toBe(true);
     expect(sortingState.targetFilter).not.toBe('none');
     expect(sortingState.sortStateAfterDoubleClick).toBe('desc');
 
-    await page.waitForTimeout(80);
+    await page.waitForFunction(() => !DiceApp.state.isSorting);
 
     const settledState = await page.evaluate(() => ({
       bodySorting: document.body.classList.contains('is-sorting'),
@@ -198,6 +200,10 @@ test.describe('DiceApp - Desktop Mode', () => {
     expect(settledState.bodySorting).toBe(false);
     expect(settledState.isSortingFlag).toBe(false);
     expect(settledState.currentSortDataAttr).toBe('desc');
+
+    // One additional click should move to asc, proving the rapid second click was ignored.
+    await page.click('.sort-handle');
+    await expect(page.locator('.sort-handle').first()).toHaveAttribute('data-sort', 'asc');
   });
 
   test('should show error for invalid notation', async ({page}) => {

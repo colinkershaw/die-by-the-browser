@@ -60,6 +60,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             --clamp-floor: #FFFFFF;
             --clamp-ceil:  #FFD166;
             --sort-handle-left-offset: -14px;
+            --sorting-target-opacity: 0.72;
+            --sorting-target-grayscale: 0.35;
 
             --glow-core:      42, 227, 243;
             --glow-mid:        0, 180, 255;
@@ -467,8 +469,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         body.is-sorting .result-item.is-sorting-target {
-            opacity: 0.72;
-            filter: grayscale(0.35);
+            opacity: var(--sorting-target-opacity);
+            filter: grayscale(var(--sorting-target-grayscale));
             transition: opacity 120ms ease, filter 120ms ease;
         }
 
@@ -1553,6 +1555,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     MAX_DICE_COUNT: 100000,
     MAX_DIE_SIDES: 1000000,
     MAX_MODIFIER: 1000000,
+    // Small macro-task defer so busy-state visuals can paint before sync-heavy work.
+    BUSY_DEFER_MS: 10,
 
     // State management (Model)
     state: {
@@ -1564,8 +1568,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       rollResults: [],
       errorMessage: '',
       isRolling: false,
+      // True while sort re-render is in-flight; blocks duplicate actions.
       isSorting: false,
-      sortingTargetIndex: null,
       spinnerPlaceholderHeight: 0
     },
 
@@ -1807,9 +1811,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 `</span>`
               }).join('');
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
-              const isSortingTarget = state.isSorting && state.sortingTargetIndex === rIdx;
               return `
-        <div class="result-item${isSortingTarget ? ' is-sorting-target' : ''}" data-result-index="${rIdx}">
+        <div class="result-item" data-result-index="${rIdx}">
           ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
@@ -2028,7 +2031,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           return;
         }
 
-        const computeAndRender = () => {
+        const computeResults = () => {
           state.errorMessage = '';
           const nextResults = [];
 
@@ -2066,19 +2069,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.isRolling = true;
           ui.renderAll();
           DiceApp.perf.mark('spinnerRenderEnd');
+          // Macro-task defer allows busy-state styles/cursor to paint
+          // before the heavy synchronous compute starts.
           setTimeout(() => {
             try {
-              computeAndRender();
+              computeResults();
             } finally {
               state.isRolling = false;
               state.spinnerPlaceholderHeight = 0;
               ui.renderAll();
             }
-          }, 10);
+          }, DiceApp.BUSY_DEFER_MS);
           return;
         }
 
-        computeAndRender();
+        computeResults();
         ui.renderAll();
       },
 
@@ -4175,18 +4180,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const current = result.sortState || 'original';
           result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
           DiceApp.state.isSorting = true;
-          DiceApp.state.sortingTargetIndex = idx;
           DiceApp.ui.syncLayoutClasses();
           resultItem.classList.add('is-sorting-target');
           setTimeout(() => {
             try {
               DiceApp.ui.renderResults();
             } finally {
+              resultItem.classList.remove('is-sorting-target');
               DiceApp.state.isSorting = false;
-              DiceApp.state.sortingTargetIndex = null;
               DiceApp.ui.syncLayoutClasses();
             }
-          }, 10);
+          }, DiceApp.BUSY_DEFER_MS);
         });
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
         window.addEventListener('resize', () => {
