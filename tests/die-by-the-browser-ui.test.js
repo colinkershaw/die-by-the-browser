@@ -719,7 +719,41 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await expect(page.locator('.result-item')).toHaveCount(1);
   });
 
-  test('spinner appears promptly on second roll via button click (retained-results path)', async ({page}) => {
+  test('heavy reroll clears result items but preserves results area height with placeholder', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const loading = page.locator('.loading');
+
+    await page.fill('#diceInput', '20000d6');
+    await page.press('#diceInput', 'Enter');
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    const beforeHeight = await page.locator('#results').evaluate((el) => Math.ceil(el.getBoundingClientRect().height));
+
+    await page.press('#diceInput', 'Enter');
+    await expect.poll(async () => await loading.isVisible()).toBe(true);
+
+    const during = await page.evaluate(() => {
+      const results = document.getElementById('results');
+      const placeholder = results.querySelector('.results-placeholder');
+      return {
+        resultItems: results.querySelectorAll('.result-item').length,
+        placeholderHeight: placeholder ? Number.parseFloat(placeholder.style.height || '0') : 0,
+        containerHeight: Math.ceil(results.getBoundingClientRect().height),
+      };
+    });
+
+    expect(during.resultItems).toBe(0);
+    expect(during.placeholderHeight).toBeGreaterThan(0);
+    expect(during.containerHeight).toBeGreaterThanOrEqual(beforeHeight - 4);
+
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+  });
+
+  test('spinner appears promptly on second roll via button click', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
 
@@ -756,7 +790,7 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     expect(computeStart - spinnerRenderEnd).toBeGreaterThan(10);
   });
 
-  test('spinner appears promptly on second roll via Enter key (retained-results path)', async ({page}) => {
+  test('spinner appears promptly on second roll via Enter key', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
 
