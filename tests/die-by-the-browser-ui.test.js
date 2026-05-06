@@ -195,29 +195,32 @@ test.describe('DiceApp - Desktop Mode', () => {
     await expect(page.locator('.result-item')).toHaveCount(1);
 
     // Intercept requestAnimationFrame to capture the sorting class state before render.
+    // The sort handler uses a double-rAF pattern:
+    //   click → add .sorting → rAF(outer) → rAF(inner) → renderResults() + remove .sorting
+    // We intercept the inner rAF to read classList *before* renderResults() runs,
+    // confirming the indicator was present during the paint gap.
     const sortingClassObserved = await page.evaluate(() => {
       return new Promise((resolve) => {
         const resultItem = document.querySelector('.result-item');
         if (!resultItem) { resolve(false); return; }
 
-        // Patch rAF to capture class state on first inner frame, before render.
         const origRaf = window.requestAnimationFrame.bind(window);
         let callCount = 0;
         window.requestAnimationFrame = (cb) => {
           callCount++;
           if (callCount === 1) {
-            // Outer rAF: wrap the inner rAF callback.
+            // Outer rAF: intercept to wrap the inner rAF scheduled inside cb().
             return origRaf(() => {
               const origRaf2 = window.requestAnimationFrame.bind(window);
               window.requestAnimationFrame = (cb2) => {
-                // Check the .sorting class before the inner work runs.
+                // Inner rAF: .sorting must be set here, before renderResults() in cb2 runs.
                 const hasSortingClass = resultItem.classList.contains('sorting');
                 window.requestAnimationFrame = origRaf2;
-                origRaf2(cb2);
+                origRaf2(cb2);          // let the actual sort+render proceed
                 resolve(hasSortingClass);
                 return 0;
               };
-              cb();
+              cb(); // triggers the inner rAF scheduling
             });
           }
           return origRaf(cb);
