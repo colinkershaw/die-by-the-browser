@@ -103,7 +103,7 @@ test.describe('DiceApp - Desktop Mode', () => {
     expect(diceCount).toBe(3);
   });
 
-  test('should keep sort handle tappable across full result height', async ({page}) => {
+  test('should keep left blue bar area tappable for sorting', async ({page}) => {
     await page.fill('#diceInput', '3d6');
     await page.click('#rollBtn');
 
@@ -111,17 +111,31 @@ test.describe('DiceApp - Desktop Mode', () => {
       const handle = document.querySelector('.sort-handle');
       const resultItem = handle?.closest('.result-item');
       if (!handle || !resultItem) return null;
+      const handleRect = handle.getBoundingClientRect();
+      const itemRect = resultItem.getBoundingClientRect();
       return {
-        handleHeight: handle.getBoundingClientRect().height,
-        itemHeight: resultItem.getBoundingClientRect().height,
-        computedHeight: getComputedStyle(handle).height
+        handleHeight: handleRect.height,
+        itemHeight: itemRect.height,
+        handleLeft: handleRect.left,
+        itemLeft: itemRect.left,
+        itemTop: itemRect.top
       };
     });
 
     expect(dimensions).not.toBeNull();
-    expect(dimensions.computedHeight).not.toBe('0px');
     expect(dimensions.handleHeight).toBeGreaterThan(0);
     expect(Math.abs(dimensions.itemHeight - dimensions.handleHeight)).toBeLessThanOrEqual(2);
+
+    // Preserve previous wider left-bar tap area (extends left of the card edge).
+    expect(dimensions.itemLeft - dimensions.handleLeft).toBeGreaterThanOrEqual(10);
+
+    const sortHandle = page.locator('.sort-handle').first();
+    await expect(sortHandle).toHaveAttribute('data-sort', '');
+
+    // Click the visible left blue border area, not the arrow glyph.
+    await page.mouse.click(dimensions.itemLeft + 2, dimensions.itemTop + (dimensions.itemHeight / 2));
+
+    await expect(sortHandle).toHaveAttribute('data-sort', 'desc');
   });
 
   test('should show cyan sort arrow beside Rolls label after sort toggle', async ({page}) => {

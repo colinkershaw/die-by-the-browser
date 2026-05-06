@@ -59,6 +59,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
             --clamp-floor: #FFFFFF;
             --clamp-ceil:  #FFD166;
+            --sort-handle-left-offset: -14px;
 
             --glow-core:      42, 227, 243;
             --glow-mid:        0, 180, 255;
@@ -456,7 +457,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .sort-handle {
             position: absolute;
-            left: -4px;
+            left: var(--sort-handle-left-offset);
             top: 0;
             bottom: 0;
             width: 18px;
