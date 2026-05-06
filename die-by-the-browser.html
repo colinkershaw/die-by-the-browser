@@ -444,10 +444,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             min-height: 100px;
         }
 
-        .results.is-sorting {
+        body.is-rolling,
+        body.is-sorting {
+            cursor: wait !important;
+        }
+
+        body.is-rolling #diceInput,
+        body.is-rolling #rollBtn,
+        body.is-rolling #clearBtn,
+        body.is-rolling .key,
+        body.is-rolling .menu-item,
+        body.is-rolling .result-item,
+        body.is-rolling .sort-handle,
+        body.is-sorting #diceInput,
+        body.is-sorting #rollBtn,
+        body.is-sorting #clearBtn,
+        body.is-sorting .key,
+        body.is-sorting .menu-item,
+        body.is-sorting .result-item,
+        body.is-sorting .sort-handle {
+            pointer-events: none;
+        }
+
+        body.is-sorting .result-item.is-sorting-target {
             opacity: 0.72;
             filter: grayscale(0.35);
-            pointer-events: none;
             transition: opacity 120ms ease, filter 120ms ease;
         }
 
@@ -1544,6 +1565,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       errorMessage: '',
       isRolling: false,
       isSorting: false,
+      sortingTargetIndex: null,
       spinnerPlaceholderHeight: 0
     },
 
@@ -1643,7 +1665,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       },
 
       syncLayoutClasses() {
-        document.body.classList.toggle('fit-to-width', DiceApp.state.fitToWidth);
+        const {state} = DiceApp;
+        document.body.classList.toggle('fit-to-width', state.fitToWidth);
+        document.body.classList.toggle('is-rolling', state.isRolling);
+        document.body.classList.toggle('is-sorting', state.isSorting);
       },
 
       /**
@@ -1782,8 +1807,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 `</span>`
               }).join('');
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
+              const isSortingTarget = state.isSorting && state.sortingTargetIndex === rIdx;
               return `
-        <div class="result-item" data-result-index="${rIdx}">
+        <div class="result-item${isSortingTarget ? ' is-sorting-target' : ''}" data-result-index="${rIdx}">
           ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
@@ -1910,10 +1936,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         // Disable roll and clear buttons while rolling
         if (nodes.rollBtn) {
-          nodes.rollBtn.disabled = state.isRolling;
+          nodes.rollBtn.disabled = state.isRolling || state.isSorting;
         }
         if (nodes.clearBtn) {
-          nodes.clearBtn.disabled = state.isRolling;
+          nodes.clearBtn.disabled = state.isRolling || state.isSorting;
         }
       },
 
@@ -1981,7 +2007,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       roll() {
         const {state, utils, ui, nodes} = DiceApp;
 
-        if (state.isRolling) {
+        if (state.isRolling || state.isSorting) {
           return;
         }
 
@@ -2026,15 +2052,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.rollResults = nextResults;
 
           utils.setQueryParam('dice', notation);
-          if (!state.isRolling) {
-            ui.renderAll();
-            return;
-          }
-          setTimeout(() => {
-            state.isRolling = false;
-            state.spinnerPlaceholderHeight = 0;
-            ui.renderAll();
-          }, 0);
         };
 
         const estimatedDiceCount = parsed.reduce((sum, coll) => sum + (coll.batchCount * coll.count), 0);
@@ -2049,11 +2066,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.isRolling = true;
           ui.renderAll();
           DiceApp.perf.mark('spinnerRenderEnd');
-          requestAnimationFrame(computeAndRender);
+          setTimeout(() => {
+            try {
+              computeAndRender();
+            } finally {
+              state.isRolling = false;
+              state.spinnerPlaceholderHeight = 0;
+              ui.renderAll();
+            }
+          }, 10);
           return;
         }
 
         computeAndRender();
+        ui.renderAll();
       },
 
       /**
@@ -2062,7 +2088,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       clear() {
         const {state, utils, ui} = DiceApp;
 
-        if (state.isRolling) {
+        if (state.isRolling || state.isSorting) {
           return;
         }
 
@@ -2243,7 +2269,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         // Global shortcuts (work in both modes)
         if (e.key === 'Escape') {
-          if (!state.isRolling) {
+          if (!state.isRolling && !state.isSorting) {
             actions.clear();
           }
           return;
@@ -2251,7 +2277,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         if (e.key === 'Enter') {
           e.preventDefault(); // Prevent textarea newlines; Enter should roll instead
-          if (!state.isRolling) {
+          if (!state.isRolling && !state.isSorting) {
             actions.roll();
           }
           return;
@@ -2266,7 +2292,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const mapped = this.keyMap[e.key];
           if (mapped) {
             e.preventDefault();
-            if (!state.isRolling) {
+            if (!state.isRolling && !state.isSorting) {
               mapped();
             }
           }
@@ -4139,7 +4165,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         DiceApp.nodes.results.addEventListener('click', (e) => {
           const handle = e.target.closest('.sort-handle');
           if (!handle) return;
-          if (DiceApp.state.isSorting) return;
+          if (DiceApp.state.isSorting || DiceApp.state.isRolling) return;
           const resultItem = handle.closest('.result-item');
           if (!resultItem) return;
           const idx = parseInt(resultItem.dataset.resultIndex, 10);
@@ -4149,15 +4175,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const current = result.sortState || 'original';
           result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
           DiceApp.state.isSorting = true;
-          DiceApp.nodes.results.classList.add('is-sorting');
-          document.body.style.cursor = 'wait';
+          DiceApp.state.sortingTargetIndex = idx;
+          DiceApp.ui.syncLayoutClasses();
+          resultItem.classList.add('is-sorting-target');
           setTimeout(() => {
             try {
               DiceApp.ui.renderResults();
             } finally {
               DiceApp.state.isSorting = false;
-              DiceApp.nodes.results.classList.remove('is-sorting');
-              document.body.style.cursor = '';
+              DiceApp.state.sortingTargetIndex = null;
+              DiceApp.ui.syncLayoutClasses();
             }
           }, 10);
         });

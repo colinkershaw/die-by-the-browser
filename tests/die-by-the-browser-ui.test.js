@@ -161,6 +161,45 @@ test.describe('DiceApp - Desktop Mode', () => {
     expect(indicatorState.isAdjacentToRollsText).toBe(true);
   });
 
+  test('should apply body sorting busy state and block rapid re-sort clicks', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+
+    const sortingState = await page.evaluate(() => {
+      const handle = document.querySelector('.sort-handle');
+      const firstItem = document.querySelector('.result-item');
+      if (!handle || !firstItem) return null;
+
+      handle.click();
+      handle.click(); // Should be ignored while sorting is in-flight
+
+      return {
+        bodySorting: document.body.classList.contains('is-sorting'),
+        targetClass: firstItem.classList.contains('is-sorting-target'),
+        targetFilter: getComputedStyle(firstItem).filter,
+        sortStateAfterDoubleClick: DiceApp.state.rollResults[0]?.sortState || null
+      };
+    });
+
+    expect(sortingState).not.toBeNull();
+    expect(sortingState.bodySorting).toBe(true);
+    expect(sortingState.targetClass).toBe(true);
+    expect(sortingState.targetFilter).not.toBe('none');
+    expect(sortingState.sortStateAfterDoubleClick).toBe('desc');
+
+    await page.waitForTimeout(80);
+
+    const settledState = await page.evaluate(() => ({
+      bodySorting: document.body.classList.contains('is-sorting'),
+      isSortingFlag: DiceApp.state.isSorting,
+      currentSortDataAttr: document.querySelector('.sort-handle')?.getAttribute('data-sort') || ''
+    }));
+
+    expect(settledState.bodySorting).toBe(false);
+    expect(settledState.isSortingFlag).toBe(false);
+    expect(settledState.currentSortDataAttr).toBe('desc');
+  });
+
   test('should show error for invalid notation', async ({page}) => {
     await page.fill('#diceInput', 'invalid');
     await page.click('#rollBtn');
