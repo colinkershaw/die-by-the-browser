@@ -178,7 +178,9 @@ test.describe('DiceApp - Desktop Mode', () => {
         isSortingAtDoubleClick: DiceApp.state.isSorting,
         targetClass: firstItem.classList.contains('is-sorting-target'),
         targetFilter: getComputedStyle(firstItem).filter,
-        sortStateAfterDoubleClick: DiceApp.state.rollResults[0]?.sortState || null
+        sortStateAfterDoubleClick: DiceApp.state.rollResults[0]?.sortState || null,
+        rollBtnDisabledDuringSort: document.querySelector('#rollBtn')?.disabled ?? null,
+        clearBtnDisabledDuringSort: document.querySelector('#clearBtn')?.disabled ?? null
       };
     });
 
@@ -188,6 +190,8 @@ test.describe('DiceApp - Desktop Mode', () => {
     expect(sortingState.targetClass).toBe(true);
     expect(sortingState.targetFilter).not.toBe('none');
     expect(sortingState.sortStateAfterDoubleClick).toBe('desc');
+    expect(sortingState.rollBtnDisabledDuringSort).toBe(true);
+    expect(sortingState.clearBtnDisabledDuringSort).toBe(true);
 
     await page.waitForFunction(() => !DiceApp.state.isSorting);
 
