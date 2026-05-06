@@ -696,6 +696,8 @@ test.describe('DiceApp - Visual Regression', () => {
 });
 
 test.describe('DiceApp - Rolling... Spinner', () => {
+  const HEIGHT_TOLERANCE_PIXELS = 4;
+
 
   test('shows spinner during heavy roll and hides when complete', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
@@ -740,14 +742,14 @@ test.describe('DiceApp - Rolling... Spinner', () => {
       const placeholder = results.querySelector('.results-placeholder');
       return {
         resultItems: results.querySelectorAll('.result-item').length,
-        placeholderHeight: placeholder ? Number.parseFloat(placeholder.style.height || '0') : 0,
+        placeholderHeight: placeholder ? parseFloat(placeholder.style.height || '0') : 0,
         containerHeight: Math.ceil(results.getBoundingClientRect().height),
       };
     });
 
     expect(during.resultItems).toBe(0);
     expect(during.placeholderHeight).toBeGreaterThan(0);
-    expect(during.containerHeight).toBeGreaterThanOrEqual(beforeHeight - 4);
+    expect(during.containerHeight).toBeGreaterThanOrEqual(beforeHeight - HEIGHT_TOLERANCE_PIXELS);
 
     await expect(loading).toBeHidden({timeout: 30000});
     await expect(page.locator('.result-item')).toHaveCount(1);
