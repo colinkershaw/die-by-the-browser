@@ -444,6 +444,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             min-height: 100px;
         }
 
+        .results.is-sorting {
+            opacity: 0.72;
+            filter: grayscale(0.35);
+            pointer-events: none;
+            transition: opacity 120ms ease, filter 120ms ease;
+        }
+
         .result-item {
             background: #1a2238;
             padding: 10px;
@@ -1536,6 +1543,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       rollResults: [],
       errorMessage: '',
       isRolling: false,
+      isSorting: false,
       spinnerPlaceholderHeight: 0
     },
 
@@ -4131,6 +4139,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         DiceApp.nodes.results.addEventListener('click', (e) => {
           const handle = e.target.closest('.sort-handle');
           if (!handle) return;
+          if (DiceApp.state.isSorting) return;
           const resultItem = handle.closest('.result-item');
           if (!resultItem) return;
           const idx = parseInt(resultItem.dataset.resultIndex, 10);
@@ -4139,7 +4148,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const cycleOrder = ['original', 'desc', 'asc'];
           const current = result.sortState || 'original';
           result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
-          DiceApp.ui.renderResults();
+          DiceApp.state.isSorting = true;
+          DiceApp.nodes.results.classList.add('is-sorting');
+          document.body.style.cursor = 'wait';
+          setTimeout(() => {
+            try {
+              DiceApp.ui.renderResults();
+            } finally {
+              DiceApp.state.isSorting = false;
+              DiceApp.nodes.results.classList.remove('is-sorting');
+              document.body.style.cursor = '';
+            }
+          }, 10);
         });
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
         window.addEventListener('resize', () => {
