@@ -1675,6 +1675,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         document.body.classList.toggle('is-sorting', state.isSorting);
       },
 
+      syncBusyControls() {
+        const {state, nodes} = DiceApp;
+        if (nodes.rollBtn) {
+          nodes.rollBtn.disabled = state.isRolling || state.isSorting;
+        }
+        if (nodes.clearBtn) {
+          nodes.clearBtn.disabled = state.isRolling || state.isSorting;
+        }
+      },
+
       /**
        * Render mode-specific layout
        */
@@ -1937,13 +1947,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           });
         }
 
-        // Disable roll and clear buttons while rolling
-        if (nodes.rollBtn) {
-          nodes.rollBtn.disabled = state.isRolling || state.isSorting;
-        }
-        if (nodes.clearBtn) {
-          nodes.clearBtn.disabled = state.isRolling || state.isSorting;
-        }
+        // Disable roll and clear buttons while app is busy
+        DiceApp.ui.syncBusyControls();
       },
 
       /**
@@ -4181,12 +4186,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
           DiceApp.state.isSorting = true;
           DiceApp.ui.syncLayoutClasses();
-          if (DiceApp.nodes.rollBtn) {
-            DiceApp.nodes.rollBtn.disabled = DiceApp.state.isRolling || DiceApp.state.isSorting;
-          }
-          if (DiceApp.nodes.clearBtn) {
-            DiceApp.nodes.clearBtn.disabled = DiceApp.state.isRolling || DiceApp.state.isSorting;
-          }
+          DiceApp.ui.syncBusyControls();
           resultItem.classList.add('is-sorting-target');
           setTimeout(() => {
             try {
@@ -4195,7 +4195,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               resultItem.classList.remove('is-sorting-target');
               DiceApp.state.isSorting = false;
               DiceApp.ui.syncLayoutClasses();
-              DiceApp.ui.renderResults();
+              DiceApp.ui.syncBusyControls();
             }
           }, DiceApp.BUSY_DEFER_MS);
         });
