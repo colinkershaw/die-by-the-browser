@@ -59,6 +59,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
             --clamp-floor: #FFFFFF;
             --clamp-ceil:  #FFD166;
+            --sort-arrow-color: #4a1b6b;
+            --sort-arrow-font-size: 0.72em;
 
             --glow-core:      42, 227, 243;
             --glow-mid:        0, 180, 255;
@@ -476,9 +478,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             left: 0;
             top: 50%;
             transform: translateY(-50%);
-            font-size: 0.72em;
+            font-size: var(--sort-arrow-font-size);
             line-height: 1;
-            color: #4a1b6b;
+            color: var(--sort-arrow-color);
             text-shadow: 0 0 1px rgba(0, 0, 0, 0.45);
         }
 
