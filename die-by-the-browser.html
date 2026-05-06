@@ -4189,6 +4189,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               resultItem.classList.remove('is-sorting-target');
               DiceApp.state.isSorting = false;
               DiceApp.ui.syncLayoutClasses();
+              DiceApp.ui.renderResults();
             }
           }, DiceApp.BUSY_DEFER_MS);
         });

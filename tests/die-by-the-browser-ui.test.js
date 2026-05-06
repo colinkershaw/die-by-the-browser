@@ -194,12 +194,14 @@ test.describe('DiceApp - Desktop Mode', () => {
     const settledState = await page.evaluate(() => ({
       bodySorting: document.body.classList.contains('is-sorting'),
       isSortingFlag: DiceApp.state.isSorting,
-      currentSortDataAttr: document.querySelector('.sort-handle')?.getAttribute('data-sort') || ''
+      currentSortDataAttr: document.querySelector('.sort-handle')?.getAttribute('data-sort') || '',
+      rollBtnDisabled: document.querySelector('#rollBtn')?.disabled ?? null
     }));
 
     expect(settledState.bodySorting).toBe(false);
     expect(settledState.isSortingFlag).toBe(false);
     expect(settledState.currentSortDataAttr).toBe('desc');
+    expect(settledState.rollBtnDisabled).toBe(false);
 
     // One additional click should move to asc, proving the rapid second click was ignored.
     await page.click('.sort-handle');
