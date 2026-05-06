@@ -61,6 +61,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             --clamp-ceil:  #FFD166;
             --sort-arrow-color: #4a1b6b;
             --sort-arrow-font-size: 0.72em;
+            --sort-handle-left-offset: -14px;
+            --sort-handle-height: 1.1em;
 
             --glow-core:      42, 227, 243;
             --glow-mid:        0, 180, 255;
@@ -458,10 +460,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .sort-handle {
             position: absolute;
-            left: -14px;
+            left: var(--sort-handle-left-offset);
             top: 0;
             width: 18px;
-            height: 1.1em;
+            height: var(--sort-handle-height);
             cursor: pointer;
             border-radius: 8px 0 0 8px;
             z-index: 2;
