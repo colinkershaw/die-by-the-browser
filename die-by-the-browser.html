@@ -59,10 +59,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
             --clamp-floor: #FFFFFF;
             --clamp-ceil:  #FFD166;
-            --sort-arrow-color: #3c1361;
-            --sort-arrow-font-size: 0.72em;
-            --sort-handle-left-offset: -14px;
-            --sort-handle-height: 1.1em;
 
             --glow-core:      42, 227, 243;
             --glow-mid:        0, 180, 255;
@@ -460,10 +456,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .sort-handle {
             position: absolute;
-            left: var(--sort-handle-left-offset);
+            left: -4px;
             top: 0;
             width: 18px;
-            height: var(--sort-handle-height);
+            height: 100%;
             cursor: pointer;
             border-radius: 8px 0 0 8px;
             z-index: 2;
@@ -471,26 +467,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .sort-handle:hover {
             background: rgba(42, 227, 243, 0.18);
-        }
-
-        .sort-handle[data-sort="desc"]::after,
-        .sort-handle[data-sort="asc"]::after {
-            position: absolute;
-            left: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: var(--sort-arrow-font-size);
-            line-height: 1;
-            color: var(--sort-arrow-color);
-            text-shadow: 0 0 1px rgba(0, 0, 0, 0.45);
-        }
-
-        .sort-handle[data-sort="desc"]::after {
-            content: '▼';
-        }
-
-        .sort-handle[data-sort="asc"]::after {
-            content: '▲';
         }
 
         .sort-handle[data-sort="desc"],
@@ -529,10 +505,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             align-items: stretch;
         }
 
-        .result-row--rolls {
-            position: relative;
-        }
-
         /* Fixed-width label column so values align across all rows */
         .result-lbl {
             color: #a0aec0;
@@ -542,6 +514,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             letter-spacing: 0.6px;
             min-width: 50px;
             flex-shrink: 0;
+        }
+
+        .sort-indicator {
+            margin-left: 4px;
+            color: #2AE3F3;
+            font-size: 0.95em;
+            line-height: 1;
+            font-weight: 700;
         }
 
         .result-value {
@@ -1745,6 +1725,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             const sortState = r.sortState || 'original';
             const sortStateLabel = sortState === 'desc' ? 'descending' : sortState === 'asc' ? 'ascending' : 'as rolled';
             const sortHandle = `<div class="sort-handle" role="button" aria-label="Sort order: ${sortStateLabel} (click to cycle)" data-sort="${sortState === 'original' ? '' : sortState}" title="Sort dice (click to cycle: descending → ascending → original)"></div>`;
+            const sortGlyph = sortState === 'desc' ? '▼' : sortState === 'asc' ? '▲' : '';
+            const rollsLabel = `<span class="result-lbl">Rolls:${sortGlyph ? `<span class="sort-indicator" aria-hidden="true">${sortGlyph}</span>` : ''}</span>`;
             const getSortedDetails = (arr) => {
               if (!arr) return arr;
               if (sortState === 'desc') return arr.slice().sort((a, b) => (b.displayValue ?? b.result ?? 0) - (a.displayValue ?? a.result ?? 0));
@@ -1792,9 +1774,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item" data-result-index="${rIdx}">
+          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked result-row--rolls">${sortHandle}<span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked">${rollsLabel}<span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
@@ -1834,10 +1817,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item" data-result-index="${rIdx}">
+          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${decoratedTotal}</span></div>
           <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
-          <div class="result-row result-row--stacked result-row--rolls">${sortHandle}<span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked">${rollsLabel}<span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
@@ -1867,9 +1851,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 : rollValSpans(r.rolls, r.sides);
               return `
         <div class="result-item" data-result-index="${rIdx}">
+          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked result-row--rolls">${sortHandle}<span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked">${rollsLabel}<span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
