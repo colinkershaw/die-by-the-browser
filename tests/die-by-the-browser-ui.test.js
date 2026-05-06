@@ -144,6 +144,9 @@ test.describe('DiceApp - Desktop Mode', () => {
 
     await page.click('.sort-handle');
 
+    // Render is deferred via rAF; wait for the sort indicator to appear.
+    await page.waitForSelector('.sort-indicator');
+
     const indicatorState = await page.evaluate(() => {
       const label = document.querySelector('.result-row--stacked .result-lbl');
       const indicator = label?.querySelector('.sort-indicator');
@@ -159,6 +162,77 @@ test.describe('DiceApp - Desktop Mode', () => {
     expect(indicatorState.glyph).toBe('▼');
     expect(indicatorState.color).toBe('rgb(42, 227, 243)');
     expect(indicatorState.isAdjacentToRollsText).toBe(true);
+  });
+
+  test('sorting does not blank existing results and cycles sort state correctly', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+
+    // Baseline: one result item rendered
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    const sortHandle = page.locator('.sort-handle').first();
+
+    // Click 1: original → desc
+    await sortHandle.click();
+    await expect(page.locator('.result-item')).toHaveCount(1);
+    await expect(sortHandle).toHaveAttribute('data-sort', 'desc');
+
+    // Click 2: desc → asc
+    await sortHandle.click();
+    await expect(page.locator('.result-item')).toHaveCount(1);
+    await expect(sortHandle).toHaveAttribute('data-sort', 'asc');
+
+    // Click 3: asc → original
+    await sortHandle.click();
+    await expect(page.locator('.result-item')).toHaveCount(1);
+    await expect(sortHandle).toHaveAttribute('data-sort', '');
+  });
+
+  test('sorting adds and removes .sorting class on result item without clearing results', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    // Intercept requestAnimationFrame to capture the sorting class state before render.
+    const sortingClassObserved = await page.evaluate(() => {
+      return new Promise((resolve) => {
+        const resultItem = document.querySelector('.result-item');
+        if (!resultItem) { resolve(false); return; }
+
+        // Patch rAF to capture class state on first inner frame, before render.
+        const origRaf = window.requestAnimationFrame.bind(window);
+        let callCount = 0;
+        window.requestAnimationFrame = (cb) => {
+          callCount++;
+          if (callCount === 1) {
+            // Outer rAF: wrap the inner rAF callback.
+            return origRaf(() => {
+              const origRaf2 = window.requestAnimationFrame.bind(window);
+              window.requestAnimationFrame = (cb2) => {
+                // Check the .sorting class before the inner work runs.
+                const hasSortingClass = resultItem.classList.contains('sorting');
+                window.requestAnimationFrame = origRaf2;
+                origRaf2(cb2);
+                resolve(hasSortingClass);
+                return 0;
+              };
+              cb();
+            });
+          }
+          return origRaf(cb);
+        };
+
+        document.querySelector('.sort-handle').click();
+      });
+    });
+
+    expect(sortingClassObserved).toBe(true);
+
+    // After sort completes, results must still be present.
+    await expect(page.locator('.result-item')).toHaveCount(1);
+    // And the .sorting class must be gone.
+    await expect(page.locator('.result-item.sorting')).toHaveCount(0);
   });
 
   test('should show error for invalid notation', async ({page}) => {

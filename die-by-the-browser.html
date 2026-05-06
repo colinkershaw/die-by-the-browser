@@ -475,6 +475,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             background: rgba(42, 227, 243, 0.10);
         }
 
+        @keyframes sortingPulse {
+            0%, 100% { border-left-color: #2AE3F3; }
+            50% { border-left-color: rgba(42, 227, 243, 0.35); }
+        }
+
+        .result-item.sorting {
+            animation: sortingPulse 0.5s ease-in-out infinite;
+        }
+
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -3217,6 +3226,43 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "Sort state cycles correctly: original → desc → asc → original",
+            test: () => {
+              const cycleOrder = ['original', 'desc', 'asc'];
+              let state = 'original';
+              const next = (s) => cycleOrder[(cycleOrder.indexOf(s) + 1) % cycleOrder.length];
+              return next(state) === 'desc' && next('desc') === 'asc' && next('asc') === 'original';
+            }
+          },
+          {
+            name: "renderResults preserves existing result items (not cleared) when called for sort",
+            test: () => {
+              const originalResults = DiceApp.state.rollResults;
+              DiceApp.state.rollResults = [{
+                formula: '3d6',
+                mode: 'none',
+                rolls: [3, 5, 1],
+                rollDetails: [
+                  {raw: 3, displayValue: 3, resultDisplay: '3', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 5, displayValue: 5, resultDisplay: '5', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 1, displayValue: 1, resultDisplay: '1', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: true}
+                ],
+                total: 9, min: 3, max: 18, sides: 6,
+                sortState: 'original'
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const beforeCount = DiceApp.nodes.results.querySelectorAll('.result-item').length;
+
+              DiceApp.state.rollResults[0].sortState = 'desc';
+              DiceApp.ui.renderResults();
+              const afterCount = DiceApp.nodes.results.querySelectorAll('.result-item').length;
+
+              DiceApp.state.rollResults = originalResults;
+              return beforeCount === 1 && afterCount === 1;
+            }
+          },
+          {
             name: "updateKeyboard does not collapse selection when value is unchanged",
             test: () => {
               // Simulate what happens when onInput fires with same value (e.g. shift+arrow)
@@ -4139,7 +4185,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const cycleOrder = ['original', 'desc', 'asc'];
           const current = result.sortState || 'original';
           result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
-          DiceApp.ui.renderResults();
+          resultItem.classList.add('sorting');
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              DiceApp.ui.renderResults();
+              resultItem.classList.remove('sorting');
+            });
+          });
         });
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
         window.addEventListener('resize', () => {
