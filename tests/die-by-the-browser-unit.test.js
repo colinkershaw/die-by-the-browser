@@ -12,6 +12,19 @@ const __dirname = dirname(__filename);
 function setupPolyfills(window) {
   polyfillMatchMedia(window);
   polyfillHistoryAPI(window);
+  polyfillRequestAnimationFrame(window);
+}
+
+/**
+ * Polyfill requestAnimationFrame for JSDOM (not natively supported)
+ */
+function polyfillRequestAnimationFrame(window) {
+  window.requestAnimationFrame = window.requestAnimationFrame || function(callback) {
+    return setTimeout(callback, 0);
+  };
+  window.cancelAnimationFrame = window.cancelAnimationFrame || function(id) {
+    clearTimeout(id);
+  };
 }
 
 /**
