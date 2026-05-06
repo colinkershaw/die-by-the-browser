@@ -456,13 +456,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .sort-handle {
             position: absolute;
-            left: -4px;
+            left: -14px;
             top: 0;
             width: 18px;
-            height: 100%;
+            height: 1.1em;
             cursor: pointer;
             border-radius: 8px 0 0 8px;
             z-index: 2;
+            overflow: visible;
         }
 
         .sort-handle:hover {
@@ -471,28 +472,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         .sort-handle[data-sort="desc"]::after,
         .sort-handle[data-sort="asc"]::after {
-            content: '';
             position: absolute;
             left: 0;
-            width: 4px;
             top: 50%;
             transform: translateY(-50%);
+            width: 4px;
+            text-align: center;
+            font-size: 11px;
+            line-height: 1;
+            color: #102045;
+            text-shadow: 0 0 1px rgba(255, 255, 255, 0.5);
         }
 
         .sort-handle[data-sort="desc"]::after {
-            border-left: 2px solid transparent;
-            border-right: 2px solid transparent;
-            border-top: 5px solid #ffffff;
-            filter: drop-shadow(0 0 2px rgba(255,255,255,0.8));
-            margin-top: 1px;
+            content: '▼';
         }
 
         .sort-handle[data-sort="asc"]::after {
-            border-left: 2px solid transparent;
-            border-right: 2px solid transparent;
-            border-bottom: 5px solid #ffffff;
-            filter: drop-shadow(0 0 2px rgba(255,255,255,0.8));
-            margin-top: -1px;
+            content: '▲';
         }
 
         .sort-handle[data-sort="desc"],
@@ -529,6 +526,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         .result-row--stacked {
             flex-direction: column;
             align-items: stretch;
+        }
+
+        .result-row--rolls {
+            position: relative;
         }
 
         /* Fixed-width label column so values align across all rows */
@@ -1790,10 +1791,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item" data-result-index="${rIdx}">
-          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked result-row--rolls">${sortHandle}<span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
@@ -1833,11 +1833,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
               return `
         <div class="result-item" data-result-index="${rIdx}">
-          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${decoratedTotal}</span></div>
           <div class="result-row"><span class="result-lbl">Math:</span><span class="result-math">${mathStr}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked result-row--rolls">${sortHandle}<span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${rangeStr}</span></div>
         </div>
       `;
@@ -1867,10 +1866,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 : rollValSpans(r.rolls, r.sides);
               return `
         <div class="result-item" data-result-index="${rIdx}">
-          ${sortHandle}
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
-          <div class="result-row result-row--stacked"><span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
+          <div class="result-row result-row--stacked result-row--rolls">${sortHandle}<span class="result-lbl">Rolls:</span><span class="result-rolls">${rollsDisplay}</span></div>
           <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
         </div>
       `;
