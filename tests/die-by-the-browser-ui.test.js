@@ -696,6 +696,8 @@ test.describe('DiceApp - Visual Regression', () => {
 });
 
 test.describe('DiceApp - Rolling... Spinner', () => {
+  const HEIGHT_TOLERANCE_PIXELS = 4;
+
 
   test('shows spinner during heavy roll and hides when complete', async ({page}) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
@@ -717,6 +719,111 @@ test.describe('DiceApp - Rolling... Spinner', () => {
 
     // And result is rendered
     await expect(page.locator('.result-item')).toHaveCount(1);
+  });
+
+  test('heavy reroll clears result items but preserves results area height with placeholder', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const loading = page.locator('.loading');
+
+    await page.fill('#diceInput', '20000d6');
+    await page.press('#diceInput', 'Enter');
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    const beforeHeight = await page.locator('#results').evaluate((el) => Math.ceil(el.getBoundingClientRect().height));
+
+    await page.press('#diceInput', 'Enter');
+    await expect.poll(async () => await loading.isVisible()).toBe(true);
+
+    const during = await page.evaluate(() => {
+      const results = document.getElementById('results');
+      const placeholder = results.querySelector('.results-placeholder');
+      return {
+        resultItems: results.querySelectorAll('.result-item').length,
+        placeholderHeight: placeholder ? parseFloat(placeholder.style.height || '0') : 0,
+        containerHeight: Math.ceil(results.getBoundingClientRect().height),
+      };
+    });
+
+    expect(during.resultItems).toBe(0);
+    expect(during.placeholderHeight).toBeGreaterThan(0);
+    expect(during.containerHeight).toBeGreaterThanOrEqual(beforeHeight - HEIGHT_TOLERANCE_PIXELS);
+
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+  });
+
+  test('spinner appears promptly on second roll via button click', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const loading = page.locator('.loading');
+
+    // Warm-up: complete one heavy roll so prior results are retained in state
+    await page.fill('#diceInput', '90000d20+5+23');
+    await page.click('#rollBtn');
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    // Enable perf instrumentation for spinner/compute phase-gap marks.
+    await page.evaluate(() => {
+      DiceApp.perf.enable();
+    });
+
+    // Trigger second roll
+    await page.click('#rollBtn');
+
+    // Wait for roll to complete
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    // With requestAnimationFrame the browser gets a full paint frame (~16 ms)
+    // between the spinner appearing and compute starting.  With setTimeout the
+    // callback fires in the very next macrotask (~0–1 ms gap).
+    const {spinnerRenderEnd, computeStart} = await page.evaluate(() => ({
+      spinnerRenderEnd: DiceApp.perf.getLastMarks()?.spinnerRenderEnd,
+      computeStart: DiceApp.perf.getLastMarks()?.computeStart,
+    }));
+
+    expect(spinnerRenderEnd).toBeDefined();
+    expect(computeStart).toBeDefined();
+    expect(computeStart - spinnerRenderEnd).toBeGreaterThan(10);
+  });
+
+  test('spinner appears promptly on second roll via Enter key', async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.goto(APP_URL);
+
+    const loading = page.locator('.loading');
+
+    // Warm-up: complete one heavy roll so prior results are retained in state
+    await page.fill('#diceInput', '90000d20+5+23');
+    await page.press('#diceInput', 'Enter');
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    // Same perf setup as the button-click variant above
+    await page.evaluate(() => {
+      DiceApp.perf.enable();
+    });
+
+    // Trigger second roll via Enter key
+    await page.press('#diceInput', 'Enter');
+
+    // Wait for roll to complete
+    await expect(loading).toBeHidden({timeout: 30000});
+    await expect(page.locator('.result-item')).toHaveCount(1);
+
+    const {spinnerRenderEnd, computeStart} = await page.evaluate(() => ({
+      spinnerRenderEnd: DiceApp.perf.getLastMarks()?.spinnerRenderEnd,
+      computeStart: DiceApp.perf.getLastMarks()?.computeStart,
+    }));
+
+    expect(spinnerRenderEnd).toBeDefined();
+    expect(computeStart).toBeDefined();
+    expect(computeStart - spinnerRenderEnd).toBeGreaterThan(10);
   });
 
   async function isLastResultVisible(page) {

@@ -117,6 +117,7 @@ includes browser scheduling overhead and cannot observe GPU rasterisation direct
 ```js
 DiceApp.perf.getLastMarks()
 // → { parseStart, parseEnd, computeStart, computeEnd,
+//     spinnerRenderStart, spinnerRenderEnd,
 //     formatStart, formatEnd, domCommitStart, domCommitEnd,
 //     paintAdjStart, paintAdjEnd }
 ```

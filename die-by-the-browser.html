@@ -1498,7 +1498,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       fitToWidth: false,
       rollResults: [],
       errorMessage: '',
-      isRolling: false
+      isRolling: false,
+      spinnerPlaceholderHeight: 0
     },
 
     // DOM element cache
@@ -1814,10 +1815,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         if (state.errorMessage) {
           htmlParts.push(`<div class="error">${state.errorMessage}</div>`);
         }
-        if (resultsHTML) {
+        if (resultsHTML && !state.isRolling) {
           htmlParts.push(resultsHTML);
         }
         if (state.isRolling) {
+          // Keep layout height stable while large-roll results are temporarily cleared.
+          htmlParts.push(`<div class="results-placeholder" style="height:${Math.max(0, state.spinnerPlaceholderHeight)}px" aria-hidden="true"></div>`);
           htmlParts.push(`<div class="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span>Rolling...</span></div>`);
         }
         const newHTML = htmlParts.join('');
@@ -1916,13 +1919,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
        * Perform dice roll and display results
        */
       roll() {
-        const {state, utils, ui} = DiceApp;
+        const {state, utils, ui, nodes} = DiceApp;
 
         if (state.isRolling) {
           return;
         }
 
         const notation = state.currentValue;
+        // Clear any stale placeholder height carried over from a previous large roll.
+        state.spinnerPlaceholderHeight = 0;
 
         DiceApp.perf.beginRoll(notation);
         DiceApp.perf.mark('parseStart');
@@ -1967,6 +1972,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           }
           setTimeout(() => {
             state.isRolling = false;
+            state.spinnerPlaceholderHeight = 0;
             ui.renderAll();
           }, 0);
         };
@@ -1975,9 +1981,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         if (estimatedDiceCount >= 5000) {
           state.errorMessage = '';
+          // Intentional read-before-clear: capture current rendered height so spinner
+          // placeholder preserves layout/scroll stability while old results are removed.
+          state.spinnerPlaceholderHeight = Math.ceil(nodes.results.getBoundingClientRect().height || 0);
+          state.rollResults = [];
+          DiceApp.perf.mark('spinnerRenderStart');
           state.isRolling = true;
           ui.renderAll();
-          setTimeout(computeAndRender, 0);
+          DiceApp.perf.mark('spinnerRenderEnd');
+          requestAnimationFrame(computeAndRender);
           return;
         }
 
@@ -3166,7 +3178,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "Roll action keeps previous results while large roll is in progress",
+            name: "Roll action clears previous results while large roll is in progress",
             async: true,
             test: async () => {
               const originalResults = DiceApp.state.rollResults;
@@ -3185,22 +3197,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
               DiceApp.actions.roll();
               const isRollingDuring = DiceApp.state.isRolling;
-              const preservesResultsWhileRolling = DiceApp.state.rollResults === sentinelResults;
-
+              const clearsResultsWhileRolling = DiceApp.state.rollResults.length === 0;
               await new Promise(resolve => setTimeout(resolve, 50));
               const changedAfter = DiceApp.state.rollResults !== sentinelResults && DiceApp.state.rollResults.length > 0;
 
               DiceApp.state.rollResults = originalResults;
-              return isRollingDuring === true && preservesResultsWhileRolling === true && changedAfter === true;
+              return isRollingDuring === true && clearsResultsWhileRolling === true && changedAfter === true;
             }
           },
           {
-            name: "Roll action does not render empty results during large-roll spinner",
+            name: "Roll action keeps a placeholder to preserve results area height during spinner",
             async: true,
             test: async () => {
               const {state, ui, nodes, actions} = DiceApp;
               const originalResults = state.rollResults;
-              const originalRenderAll = ui.renderAll;
 
               state.rollResults = [{
                 formula: '1d6',
@@ -3214,23 +3224,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               state.errorMessage = '';
               ui.renderAll();
 
-              let renderedEmptyWhileRolling = false;
-              ui.renderAll = function(...args) {
-                const out = originalRenderAll.apply(this, args);
-                if (state.isRolling && nodes.results.querySelectorAll('.result-item').length === 0) {
-                  renderedEmptyWhileRolling = true;
-                }
-                return out;
-              };
-
+              const beforeHeight = nodes.results.getBoundingClientRect().height;
               actions.updateInput('5000d6');
               actions.roll();
+
+              const hasPlaceholderDuringRolling = !!nodes.results.querySelector('.results-placeholder');
+              const duringHeight = nodes.results.getBoundingClientRect().height;
               await new Promise(resolve => setTimeout(resolve, 50));
 
-              ui.renderAll = originalRenderAll;
               state.rollResults = originalResults;
 
-              return renderedEmptyWhileRolling === false;
+              return hasPlaceholderDuringRolling === true && duringHeight >= Math.max(beforeHeight - 2, 0);
             }
           },
           {
