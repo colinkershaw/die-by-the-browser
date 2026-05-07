@@ -44,6 +44,7 @@ When accessed via GitHub Pages (or any HTTPS host), the app can be installed as 
 - **Floors and ceilings**: Clamp individual die results or totals to a minimum or maximum value.
 - **Exploding dice**: Standard (`!`) and compound (`!!`) explosions, with optional custom threshold.
 - **Keep/drop filters**: Keep or drop the highest or lowest N dice from a roll (e.g. for advantage/disadvantage or D&D attribute generation).
+- **Per-result sorting**: Click the cyan sort handle beside each result to cycle roll display order (descending → ascending → original).
 - **Critical success/failure highlighting**: Maximum and minimum die results are visually highlighted.
 - **Limits:** up to 100,000 dice, up to 1,000,000 sides, modifiers up to ±1,000,000.
 > **Note About Thresholds**
@@ -119,17 +120,19 @@ A leading integer before a space repeats the expression that many times, showing
 
 ### Floors and Ceilings (Limits)
 
-A third parameter clamps the result. The limit sign must match the modifier sign (the **Symmetry Rule**) — mixing signs is a notation error.
+One or two limit parameters can be used to clamp the result:
 
-- Negative modifier (`-`) → floor (minimum value)
-- Positive modifier (`+`) → ceiling (maximum value)
+- `-F` → floor (minimum value)
+- `+C` → ceiling (maximum value)
 
 | Notation   | Meaning                                        |
 |------------|------------------------------------------------|
 | `NdX-M-F`  | Distributed: each die result cannot go below F |
 | `NdX+M+C`  | Distributed: each die result cannot exceed C   |
+| `NdX-M-F+C` / `NdX+M-F+C` | Distributed: each die result is clamped to both floor and ceiling |
 | `NdX -M-F` | Aggregated: the total cannot go below F        |
 | `NdX +M+C` | Aggregated: the total cannot exceed C          |
+| `NdX -M-F+C` / `NdX +M-F+C` | Aggregated: total is clamped to both floor and ceiling |
 
 **Examples:**
 
@@ -139,10 +142,13 @@ A third parameter clamps the result. The limit sign must match the modifier sign
 | `3d4+2+6`   | Roll 3d4; add 2 to each die; each result has a ceiling of 6      |
 | `3d4 -3-0`  | Roll 3d4, then subtract 3 from total; total has a floor of 0     |
 | `4d6 +5+20` | Roll 4d6, add 5 to total; total capped at 20                     |
+| `3d6+2-3+7` | Roll 3d6; add 2 to each die; each result is clamped to 3..7      |
 
 Results that were clamped to the floor are underlined; results clamped to the ceiling have an overline.
 
-> **Symmetry Rule:** `3d6-5-1` is valid. `3d6+5-1` is a notation error (mixed signs).
+> You can combine floor and ceiling in either order after a modifier (for example `3d6+2+7-3` and `3d6+2-3+7`). 
+> 
+> _Tip: adding (or subtracting) zero allows you add floor and/or ceiling without actually modifying the roll (for example `3d6+0-3+7`)._
 
 ### Exploding Dice
 
@@ -165,6 +171,7 @@ When a die rolls its maximum value (or meets a threshold), it is re-rolled and t
 ### Keep / Drop Filters
 
 Keep or drop the highest or lowest N results from a roll. Uses a two-operator syntax (`++`, `+-`, `-+`, `--`).
+Discarded dice are displayed with strike-through styling.
 
 | Notation | Action                     |
 |----------|----------------------------|
