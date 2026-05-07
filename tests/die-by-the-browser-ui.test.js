@@ -193,8 +193,8 @@ test.describe('DiceApp - Desktop Mode', () => {
   [
     {label: 'keep-high', input: '4d6++2', expectedSort: 'desc', expectedRolls: ['6', '4', '2', '1']},
     {label: 'keep-low', input: '4d6+-2', expectedSort: 'asc', expectedRolls: ['1', '2', '4', '6']},
-    {label: 'drop-low', input: '4d6--2', expectedSort: 'asc', expectedRolls: ['1', '2', '4', '6']},
-    {label: 'drop-high', input: '4d6-+2', expectedSort: 'desc', expectedRolls: ['6', '4', '2', '1']}
+    {label: 'drop-low', input: '4d6--2', expectedSort: 'asc', expectedRolls: ['4', '6', '1', '2']},
+    {label: 'drop-high', input: '4d6-+2', expectedSort: 'desc', expectedRolls: ['2', '1', '6', '4']}
   ].forEach(({label, input, expectedSort, expectedRolls}) => {
     test(`should default ${label} results to ${expectedSort} sort order`, async ({page}) => {
       await setMockRandom(page, [0.1, 0.5, 0.9, 0.3]);
@@ -222,6 +222,32 @@ test.describe('DiceApp - Desktop Mode', () => {
 
     await expect(sortHandle).toHaveAttribute('data-sort', 'asc');
     await expect(result.locator('.roll-val')).toHaveText(['1', '2', '4', '6']);
+  });
+
+  test('should keep kept low dice ahead of discarded dice when toggled to descending sort', async ({page}) => {
+    await setMockRandom(page, [0.1, 0.5, 0.9, 0.3]);
+    await page.fill('#diceInput', '4d6+-2');
+    await page.click('#rollBtn');
+
+    const result = page.locator('.result-item').first();
+    const sortHandle = result.locator('.sort-handle');
+    await expect(sortHandle).toHaveAttribute('data-sort', 'asc');
+    await expect(result.locator('.roll-val')).toHaveText(['1', '2', '4', '6']);
+
+    await sortHandle.click();
+    await page.waitForFunction(() => !DiceApp.state.isSorting);
+
+    await expect(sortHandle).toHaveAttribute('data-sort', '');
+
+    await sortHandle.click();
+    await page.waitForFunction(() => !DiceApp.state.isSorting);
+
+    const chunks = result.locator('.roll-chunk');
+    await expect(result.locator('.roll-val')).toHaveText(['2', '1', '6', '4']);
+    await expect(chunks.nth(0)).not.toHaveClass(/die-dropped/);
+    await expect(chunks.nth(1)).not.toHaveClass(/die-dropped/);
+    await expect(chunks.nth(2)).toHaveClass(/die-dropped/);
+    await expect(chunks.nth(3)).toHaveClass(/die-dropped/);
   });
 
   test('should apply body sorting busy state and block rapid re-sort clicks', async ({page}) => {

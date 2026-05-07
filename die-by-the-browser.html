@@ -1812,9 +1812,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             const rollsLabel = `<span class="result-lbl">Rolls:${sortGlyph ? `<span class="sort-indicator" aria-hidden="true">${sortGlyph}</span>` : ''}</span>`;
             const getSortedDetails = (arr) => {
               if (!arr) return arr;
-              if (sortState === 'desc') return arr.slice().sort((a, b) => (b.displayValue ?? b.result ?? 0) - (a.displayValue ?? a.result ?? 0));
-              if (sortState === 'asc') return arr.slice().sort((a, b) => (a.displayValue ?? a.result ?? 0) - (b.displayValue ?? b.result ?? 0));
-              return arr;
+              const direction = sortState === 'desc' ? -1 : sortState === 'asc' ? 1 : 0;
+              if (!direction) return arr;
+              return arr.slice().sort((a, b) => {
+                const aDropped = a.isDropped || a.kept === false;
+                const bDropped = b.isDropped || b.kept === false;
+                if (aDropped !== bDropped) return aDropped ? 1 : -1;
+                const aValue = a.displayValue ?? a.result ?? 0;
+                const bValue = b.displayValue ?? b.result ?? 0;
+                return direction * (aValue - bValue);
+              });
             };
 
             if (r.mode === 'distributed') {
@@ -3341,6 +3348,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const droppedRaw = DiceApp.nodes.results.querySelector('.die-cell.die-dropped .die-raw');
               return droppedRaw?.textContent === '=1' &&
                 !droppedRaw.textContent.includes('-1');
+            }
+          },
+          {
+            name: "renderResults - sorted kept dice stay ahead of dropped dice",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '4d6+-2',
+                mode: 'none',
+                rolls: [1, 4, 6, 2],
+                rollDetails: [
+                  {raw: 1, displayValue: 1, resultDisplay: '1', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: true},
+                  {raw: 4, displayValue: 4, resultDisplay: '4', kept: false, isDropped: true, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 6, displayValue: 6, resultDisplay: '6', kept: false, isDropped: true, isCriticalSuccess: true, isCriticalFailure: false},
+                  {raw: 2, displayValue: 2, resultDisplay: '2', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false}
+                ],
+                total: 3,
+                min: 2,
+                max: 24,
+                sides: 6,
+                sortState: 'desc'
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const chunks = [...DiceApp.nodes.results.querySelectorAll('.roll-chunk')];
+              const values = chunks.map(node => node.textContent.trim()).join(',');
+              const droppedFlags = chunks.map(node => node.classList.contains('die-dropped')).join(',');
+              return values === '2,1,6,4' &&
+                droppedFlags === 'false,false,true,true';
             }
           },
           {
