@@ -447,6 +447,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             min-height: 100px;
         }
 
+        .results.animate-roll-in .result-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
         body.is-rolling,
         body.is-sorting {
             cursor: wait !important;
@@ -481,7 +485,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             border-radius: 8px;
             margin-bottom: 10px;
             border-left: 4px solid #2AE3F3;
-            animation:  slideIn 0.3s ease-out;
+            /*animation:  slideIn 0.3s ease-out;*/
             color: #ffffff;
             position: relative;
         }
@@ -1952,6 +1956,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         DiceApp.ui.syncBusyControls();
       },
 
+      animateRollIn() {
+        const el = DiceApp.nodes.results;
+        el.classList.remove('animate-roll-in');
+        void el.offsetWidth; // reflow to restart animation
+        el.classList.add('animate-roll-in');
+        setTimeout(() => el.classList.remove('animate-roll-in'), 320);
+      },
+
       /**
        * Render menu to show current mode
        */
@@ -2084,6 +2096,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               state.isRolling = false;
               state.spinnerPlaceholderHeight = 0;
               ui.renderAll();
+              ui.animateRollIn();
             }
           }, DiceApp.BUSY_DEFER_MS);
           return;
@@ -2091,6 +2104,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         computeResults();
         ui.renderAll();
+        ui.animateRollIn();
       },
 
       /**
