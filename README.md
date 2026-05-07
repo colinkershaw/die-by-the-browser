@@ -2,7 +2,7 @@
 
 A free, open-source dice roller for tabletop RPGs. Single HTML file — no frameworks, no dependencies, no internet required.
 
-**[▶ Try it live (GitHub Pages)](https://colinkershaw.github.io/die-by-the-browser/die-by-the-browser.html#input=3d6+2+4d8+3d20%2B1%2B17+3d100+-2-10+3d6%21+3d10%21%21+3d6%21%2B1%2B2+3d10%21%21%2B%2B2+3d6%2B-1+3d6%21%21--2+3d6-%2B1+100d100)**
+**[▶ Try it live (GitHub Pages)](https://colinkershaw.github.io/die-by-the-browser/die-by-the-browser.html#dice=3d6+2+4d8+3d20%2B1%2B17+3d100+-2-10+3d6%21+3d10%21%21+3d6%21%2B1%2B2+3d10%21%21%2B%2B2+3d6%2B-1+3d6%21%21--2+3d6-%2B1+100d100)**
 
 **[⬇ Download die-by-the-browser.html](https://github.com/colinkershaw/die-by-the-browser/raw/main/die-by-the-browser.html)** *(Right-click → Save As)*
 
@@ -38,7 +38,7 @@ When accessed via GitHub Pages (or any HTTPS host), the app can be installed as 
 - **Physical keyboard support**: Full text input with cursor navigation for desktop use.
 - **Auto-detection with manual override**: Automatically selects keypad or keyboard mode based on your device, but you can force either from the ☰ menu.
 - **Fit to Width**: Removes padding and maximizes screen use, accessible from the ☰ menu.
-- **URL state persistence**: Your dice input is saved to the URL hash on each roll (`#input=...`). Bookmark the URL to save a configuration. The results are not stored.
+- **URL state persistence**: Your dice input is saved to the URL hash on each roll. Bookmark the URL to save a configuration. The results are not stored.
 - **Batch rolls**: Roll the same expression multiple times in one go.
 - **Distributed and aggregated modifiers**: Apply a modifier to each individual die, or to the final sum; controlled by whitespace.
 - **Floors and ceilings**: Clamp individual die results or totals to a minimum or maximum value.
@@ -120,7 +120,7 @@ A leading integer before a space repeats the expression that many times, showing
 
 ### Floors and Ceilings (Limits)
 
-One or two limit parameters clamp the result:
+One or two limit parameters can be used to clamp the result:
 
 - `-F` → floor (minimum value)
 - `+C` → ceiling (maximum value)
@@ -146,7 +146,9 @@ One or two limit parameters clamp the result:
 
 Results that were clamped to the floor are underlined; results clamped to the ceiling have an overline.
 
-> You can combine floor and ceiling in either order after a modifier (for example `3d6+2+7-3` and `3d6+2-3+7`).
+> You can combine floor and ceiling in either order after a modifier (for example `3d6+2+7-3` and `3d6+2-3+7`). 
+> 
+> _Tip: adding (or subtracting) zero allows you add floor and/or ceiling without actually modifying the roll (for example `3d6+0-3+7`)._
 
 ### Exploding Dice
 
@@ -169,7 +171,7 @@ When a die rolls its maximum value (or meets a threshold), it is re-rolled and t
 ### Keep / Drop Filters
 
 Keep or drop the highest or lowest N results from a roll. Uses a two-operator syntax (`++`, `+-`, `-+`, `--`).
-Dropped dice are displayed with strike-through styling.
+Discarded dice are displayed with strike-through styling.
 
 | Notation | Action                     |
 |----------|----------------------------|
@@ -199,7 +201,7 @@ Modifiers, limits, explosions, and filters can be combined. The order of evaluat
 
 ### Placeholder / Input Hint
 
-The input field shows `e.g., 3d6 4d12` when empty.
+The input field shows `e.g., 3d6 2 3d4-2-0 4d6 +5+20` when empty.
 
 ---
 
