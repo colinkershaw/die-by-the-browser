@@ -142,23 +142,52 @@ test.describe('DiceApp - Desktop Mode', () => {
     await page.fill('#diceInput', '3d6');
     await page.click('#rollBtn');
 
-    await page.click('.sort-handle');
+    const result = page.locator('.result-item').first();
+    const sortHandle = result.locator('.sort-handle');
 
-    const indicatorState = await page.evaluate(() => {
-      const label = document.querySelector('.result-row--stacked .result-lbl');
-      const indicator = label?.querySelector('.sort-indicator');
-      if (!label || !indicator) return null;
-      return {
-        glyph: indicator.textContent,
-        color: getComputedStyle(indicator).color,
-        isAdjacentToRollsText: (indicator.previousSibling?.textContent || '').includes('Rolls:')
-      };
-    });
+    await sortHandle.click();
+    await expect(sortHandle).toHaveAttribute('data-sort', 'desc');
 
-    expect(indicatorState).not.toBeNull();
-    expect(indicatorState.glyph).toBe('▼');
-    expect(indicatorState.color).toBe('rgb(42, 227, 243)');
-    expect(indicatorState.isAdjacentToRollsText).toBe(true);
+    const label = result.locator('.result-row--stacked .result-lbl');
+    const indicator = label.locator('.sort-indicator');
+
+    // Auto-retrying, user-visible checks
+    await expect(label).toContainText('Rolls:');
+    // Structural check: indicator is inside the Rolls label row
+    await expect(indicator).toHaveCount(1);
+    await expect(indicator).toHaveText('▼');
+    await expect(indicator).toHaveCSS('color', 'rgb(42, 227, 243)');
+
+
+    // Optional: assert rendered text pattern in one line (less fragile than previousSibling)
+    await expect(label).toContainText(/Rolls:\s*▼/);
+  });
+
+  test('should cycle sort order from as rolled to desc to asc and back to as rolled', async ({page}) => {
+    await page.fill('#diceInput', '3d6');
+    await page.click('#rollBtn');
+
+    const result = page.locator('.result-item').first();
+    const sortHandle = result.locator('.sort-handle');
+    const indicator = result.locator('.result-row--stacked .sort-indicator');
+
+    await expect(sortHandle).toHaveAttribute('data-sort', '');
+    await expect(indicator).toHaveCount(0);
+
+    await sortHandle.click();
+    await page.waitForFunction(() => !document.body.classList.contains('is-sorting'));
+    await expect(sortHandle).toHaveAttribute('data-sort', 'desc');
+    await expect(indicator).toHaveText('▼');
+
+    await sortHandle.click();
+    await page.waitForFunction(() => !document.body.classList.contains('is-sorting'));
+    await expect(sortHandle).toHaveAttribute('data-sort', 'asc');
+    await expect(indicator).toHaveText('▲');
+
+    await sortHandle.click();
+    await page.waitForFunction(() => !document.body.classList.contains('is-sorting'));
+    await expect(sortHandle).toHaveAttribute('data-sort', '');
+    await expect(indicator).toHaveCount(0);
   });
 
   test('should apply body sorting busy state and block rapid re-sort clicks', async ({page}) => {
@@ -199,13 +228,15 @@ test.describe('DiceApp - Desktop Mode', () => {
       bodySorting: document.body.classList.contains('is-sorting'),
       isSortingFlag: DiceApp.state.isSorting,
       currentSortDataAttr: document.querySelector('.sort-handle')?.getAttribute('data-sort') || '',
-      rollBtnDisabled: document.querySelector('#rollBtn')?.disabled ?? null
+      rollBtnDisabled: document.querySelector('#rollBtn')?.disabled ?? null,
+      clearBtnDisabled: document.querySelector('#clearBtn')?.disabled ?? null
     }));
 
     expect(settledState.bodySorting).toBe(false);
     expect(settledState.isSortingFlag).toBe(false);
     expect(settledState.currentSortDataAttr).toBe('desc');
     expect(settledState.rollBtnDisabled).toBe(false);
+    expect(settledState.clearBtnDisabled).toBe(false);
 
     // One additional click should move to asc, proving the rapid second click was ignored.
     await page.click('.sort-handle');

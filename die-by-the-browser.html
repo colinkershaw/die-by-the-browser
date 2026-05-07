@@ -43,7 +43,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       if ('serviceWorker' in navigator && location.protocol !== 'file:') {
         navigator.serviceWorker.register('sw.js').catch(console.error);
       } else if (location.protocol === 'file:') {
-        console.info('📱 Manifest and Service Workers unavailable on file:// - deploy to a web server for PWA features');
+        console.info('📱 Manifest and Service Workers unavailable on file:// - deploy to a web server to enable PWA features');
       }
     </script>
 
@@ -421,7 +421,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             box-shadow: 0 5px 15px rgba(42, 227, 243, 0.4);
         }
 
-        #rollBtn:disabled {
+        #rollBtn:disabled,
+        #clearBtn:disabled {
             background: #252d4a;
             color: #718096;
             cursor: not-allowed;
