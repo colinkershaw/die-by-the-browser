@@ -190,6 +190,40 @@ test.describe('DiceApp - Desktop Mode', () => {
     await expect(indicator).toHaveCount(0);
   });
 
+  [
+    {label: 'keep-high', input: '4d6++2', expectedSort: 'desc', expectedRolls: ['6', '4', '2', '1']},
+    {label: 'keep-low', input: '4d6+-2', expectedSort: 'asc', expectedRolls: ['1', '2', '4', '6']},
+    {label: 'drop-low', input: '4d6--2', expectedSort: 'asc', expectedRolls: ['1', '2', '4', '6']},
+    {label: 'drop-high', input: '4d6-+2', expectedSort: 'desc', expectedRolls: ['6', '4', '2', '1']}
+  ].forEach(({label, input, expectedSort, expectedRolls}) => {
+    test(`should default ${label} results to ${expectedSort} sort order`, async ({page}) => {
+      await setMockRandom(page, [0.1, 0.5, 0.9, 0.3]);
+      await page.fill('#diceInput', input);
+      await page.click('#rollBtn');
+
+      const result = page.locator('.result-item').first();
+      await expect(result.locator('.sort-handle')).toHaveAttribute('data-sort', expectedSort);
+      await expect(result.locator('.roll-val')).toHaveText(expectedRolls);
+    });
+  });
+
+  test('should still allow overriding the default keep/discard sort order', async ({page}) => {
+    await setMockRandom(page, [0.1, 0.5, 0.9, 0.3]);
+    await page.fill('#diceInput', '4d6++2');
+    await page.click('#rollBtn');
+
+    const result = page.locator('.result-item').first();
+    const sortHandle = result.locator('.sort-handle');
+    await expect(sortHandle).toHaveAttribute('data-sort', 'desc');
+    await expect(result.locator('.roll-val')).toHaveText(['6', '4', '2', '1']);
+
+    await sortHandle.click();
+    await page.waitForFunction(() => !DiceApp.state.isSorting);
+
+    await expect(sortHandle).toHaveAttribute('data-sort', 'asc');
+    await expect(result.locator('.roll-val')).toHaveText(['1', '2', '4', '6']);
+  });
+
   test('should apply body sorting busy state and block rapid re-sort clicks', async ({page}) => {
     await page.fill('#diceInput', '3d6');
     await page.click('#rollBtn');
@@ -650,6 +684,18 @@ test.describe('DiceApp - Advanced Mechanics', () => {
     await expect(page.locator('.die-explode-compound')).toHaveCount(2);
   });
 
+  test('should render range with .. delimiter and explosion suffix styling', async ({page}) => {
+    await page.fill('#diceInput', '2d6!!');
+    await page.click('#rollBtn');
+
+    const range = page.locator('.result-range');
+    const suffix = range.locator('.range-explode');
+    await expect(range).toHaveText('2..12!!');
+    await expect(suffix).toHaveText('!!');
+    await expect(suffix).toHaveAttribute('title', 'Dice explode and compound into a single total.');
+    await expect(suffix).toHaveCSS('color', 'rgb(42, 227, 243)');
+  });
+
   test('should render keep-high filter', async ({page}) => {
     await page.fill('#diceInput', '3d20++1');
     await page.click('#rollBtn');
@@ -755,6 +801,17 @@ test.describe('DiceApp - Advanced Mechanics', () => {
     await expect(page.locator('.die-raw').first()).toHaveText('=4+5');
     await expect(page.locator('.die-raw').nth(1)).toHaveText('=4+5');
     await expect(page.locator('.die-raw').nth(2)).toHaveText('=4+5');
+  });
+
+  test('should omit distributed modifier terms on dropped dice after drop-low filtering with ceiling', async ({page}) => {
+    await setMockRandom(page, [0, 0.999999]);
+    await page.fill('#diceInput', '2d6--1-1+4');
+    await page.click('#rollBtn');
+
+    await expect(page.locator('.die-cell')).toHaveCount(2);
+    await expect(page.locator('.die-cell.die-dropped .die-raw')).toHaveText('=1');
+    await expect(page.locator('.die-cell:not(.die-dropped) .die-raw')).toHaveText('=6-1');
+    await expect(page.locator('.die-cell:not(.die-dropped) .die-clamp-ceiling')).toHaveCount(1);
   });
 
   test('should render aggregated math row and range labels', async ({page}) => {
@@ -1119,6 +1176,25 @@ test.describe('DiceApp - Accessibility', () => {
     await expect(page.locator('#menu')).toHaveClass(/active/);
     await page.click('body', {position: {x: 10, y: 10}});
     await expect(page.locator('#menu')).not.toHaveClass(/active/);
+    await expect(page.locator('#hamburger')).toBeFocused();
+  });
+
+  test('should tab through hamburger menu items and close with Escape', async ({page}) => {
+    await page.goto(APP_URL);
+    await page.focus('#hamburger');
+    await page.keyboard.press('Space');
+
+    const menu = page.locator('#menu');
+    const items = page.locator('#menu .menu-item');
+    await expect(menu).toHaveClass(/active/);
+
+    await page.keyboard.press('Tab');
+    await expect(items.nth(0)).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(items.nth(1)).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(menu).not.toHaveClass(/active/);
     await expect(page.locator('#hamburger')).toBeFocused();
   });
 
