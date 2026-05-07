@@ -43,7 +43,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       if ('serviceWorker' in navigator && location.protocol !== 'file:') {
         navigator.serviceWorker.register('sw.js').catch(console.error);
       } else if (location.protocol === 'file:') {
-        console.info('📱 Manifest and Service Workers unavailable on file:// - deploy to a web server for PWA features');
+        console.info('📱 Manifest and Service Workers unavailable on file:// - deploy to a web server to enable PWA features');
       }
     </script>
 
@@ -60,6 +60,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             --clamp-floor: #FFFFFF;
             --clamp-ceil:  #FFD166;
             --sort-handle-left-offset: -14px;
+            --sorting-target-opacity: 0.72;
+            --sorting-target-grayscale: 0.35;
 
             --glow-core:      42, 227, 243;
             --glow-mid:        0, 180, 255;
@@ -419,7 +421,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             box-shadow: 0 5px 15px rgba(42, 227, 243, 0.4);
         }
 
-        #rollBtn:disabled {
+        #rollBtn:disabled,
+        #clearBtn:disabled {
             background: #252d4a;
             color: #718096;
             cursor: not-allowed;
@@ -444,13 +447,45 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             min-height: 100px;
         }
 
+        .results.animate-roll-in .result-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        body.is-rolling,
+        body.is-sorting {
+            cursor: wait !important;
+        }
+
+        body.is-rolling #diceInput,
+        body.is-rolling #rollBtn,
+        body.is-rolling #clearBtn,
+        body.is-rolling .key,
+        body.is-rolling .menu-item,
+        body.is-rolling .result-item,
+        body.is-rolling .sort-handle,
+        body.is-sorting #diceInput,
+        body.is-sorting #rollBtn,
+        body.is-sorting #clearBtn,
+        body.is-sorting .key,
+        body.is-sorting .menu-item,
+        body.is-sorting .result-item,
+        body.is-sorting .sort-handle {
+            pointer-events: none;
+        }
+
+        body.is-sorting .result-item.is-sorting-target {
+            opacity: var(--sorting-target-opacity);
+            filter: grayscale(var(--sorting-target-grayscale));
+            transition: opacity 120ms ease, filter 120ms ease;
+        }
+
         .result-item {
             background: #1a2238;
             padding: 10px;
             border-radius: 8px;
             margin-bottom: 10px;
             border-left: 4px solid #2AE3F3;
-            animation:  slideIn 0.3s ease-out;
+            /*animation:  slideIn 0.3s ease-out;*/
             color: #ffffff;
             position: relative;
         }
@@ -1525,6 +1560,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
     MAX_DICE_COUNT: 100000,
     MAX_DIE_SIDES: 1000000,
     MAX_MODIFIER: 1000000,
+    // Small macro-task defer so busy-state visuals can paint before sync-heavy work.
+    BUSY_DEFER_MS: 10,
 
     // State management (Model)
     state: {
@@ -1536,6 +1573,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       rollResults: [],
       errorMessage: '',
       isRolling: false,
+      // True while sort re-render is in-flight; blocks duplicate actions.
+      isSorting: false,
       spinnerPlaceholderHeight: 0
     },
 
@@ -1635,7 +1674,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       },
 
       syncLayoutClasses() {
-        document.body.classList.toggle('fit-to-width', DiceApp.state.fitToWidth);
+        const {state} = DiceApp;
+        document.body.classList.toggle('fit-to-width', state.fitToWidth);
+        document.body.classList.toggle('is-rolling', state.isRolling);
+        document.body.classList.toggle('is-sorting', state.isSorting);
+      },
+
+      syncBusyControls() {
+        const {state, nodes} = DiceApp;
+        if (nodes.rollBtn) {
+          nodes.rollBtn.disabled = state.isRolling || state.isSorting;
+        }
+        if (nodes.clearBtn) {
+          nodes.clearBtn.disabled = state.isRolling || state.isSorting;
+        }
       },
 
       /**
@@ -1900,13 +1952,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           });
         }
 
-        // Disable roll and clear buttons while rolling
-        if (nodes.rollBtn) {
-          nodes.rollBtn.disabled = state.isRolling;
-        }
-        if (nodes.clearBtn) {
-          nodes.clearBtn.disabled = state.isRolling;
-        }
+        // Disable roll and clear buttons while app is busy
+        DiceApp.ui.syncBusyControls();
+      },
+
+      animateRollIn() {
+        const el = DiceApp.nodes.results;
+        el.classList.remove('animate-roll-in');
+        void el.offsetWidth; // reflow to restart animation
+        el.classList.add('animate-roll-in');
+        setTimeout(() => el.classList.remove('animate-roll-in'), 320);
       },
 
       /**
@@ -1973,7 +2028,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       roll() {
         const {state, utils, ui, nodes} = DiceApp;
 
-        if (state.isRolling) {
+        if (state.isRolling || state.isSorting) {
           return;
         }
 
@@ -1994,7 +2049,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           return;
         }
 
-        const computeAndRender = () => {
+        const computeResults = () => {
           state.errorMessage = '';
           const nextResults = [];
 
@@ -2018,15 +2073,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.rollResults = nextResults;
 
           utils.setQueryParam('dice', notation);
-          if (!state.isRolling) {
-            ui.renderAll();
-            return;
-          }
-          setTimeout(() => {
-            state.isRolling = false;
-            state.spinnerPlaceholderHeight = 0;
-            ui.renderAll();
-          }, 0);
         };
 
         const estimatedDiceCount = parsed.reduce((sum, coll) => sum + (coll.batchCount * coll.count), 0);
@@ -2041,11 +2087,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           state.isRolling = true;
           ui.renderAll();
           DiceApp.perf.mark('spinnerRenderEnd');
-          requestAnimationFrame(computeAndRender);
+          // Macro-task defer allows busy-state styles/cursor to paint
+          // before the heavy synchronous compute starts.
+          setTimeout(() => {
+            try {
+              computeResults();
+            } finally {
+              state.isRolling = false;
+              state.spinnerPlaceholderHeight = 0;
+              ui.renderAll();
+              ui.animateRollIn();
+            }
+          }, DiceApp.BUSY_DEFER_MS);
           return;
         }
 
-        computeAndRender();
+        computeResults();
+        ui.renderAll();
+        ui.animateRollIn();
       },
 
       /**
@@ -2054,7 +2113,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       clear() {
         const {state, utils, ui} = DiceApp;
 
-        if (state.isRolling) {
+        if (state.isRolling || state.isSorting) {
           return;
         }
 
@@ -2235,7 +2294,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         // Global shortcuts (work in both modes)
         if (e.key === 'Escape') {
-          if (!state.isRolling) {
+          if (!state.isRolling && !state.isSorting) {
             actions.clear();
           }
           return;
@@ -2243,7 +2302,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         if (e.key === 'Enter') {
           e.preventDefault(); // Prevent textarea newlines; Enter should roll instead
-          if (!state.isRolling) {
+          if (!state.isRolling && !state.isSorting) {
             actions.roll();
           }
           return;
@@ -2258,7 +2317,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const mapped = this.keyMap[e.key];
           if (mapped) {
             e.preventDefault();
-            if (!state.isRolling) {
+            if (!state.isRolling && !state.isSorting) {
               mapped();
             }
           }
@@ -4131,6 +4190,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         DiceApp.nodes.results.addEventListener('click', (e) => {
           const handle = e.target.closest('.sort-handle');
           if (!handle) return;
+          if (DiceApp.state.isSorting || DiceApp.state.isRolling) return;
           const resultItem = handle.closest('.result-item');
           if (!resultItem) return;
           const idx = parseInt(resultItem.dataset.resultIndex, 10);
@@ -4139,7 +4199,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           const cycleOrder = ['original', 'desc', 'asc'];
           const current = result.sortState || 'original';
           result.sortState = cycleOrder[(cycleOrder.indexOf(current) + 1) % cycleOrder.length];
-          DiceApp.ui.renderResults();
+          DiceApp.state.isSorting = true;
+          DiceApp.ui.syncLayoutClasses();
+          DiceApp.ui.syncBusyControls();
+          resultItem.classList.add('is-sorting-target');
+          setTimeout(() => {
+            try {
+              DiceApp.ui.renderResults();
+            } finally {
+              resultItem.classList.remove('is-sorting-target');
+              DiceApp.state.isSorting = false;
+              DiceApp.ui.syncLayoutClasses();
+              DiceApp.ui.syncBusyControls();
+            }
+          }, DiceApp.BUSY_DEFER_MS);
         });
         window.addEventListener('keydown', (e) => DiceApp.handlers.onKeyDownGlobal(e));
         window.addEventListener('resize', () => {
