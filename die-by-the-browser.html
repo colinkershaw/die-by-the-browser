@@ -219,7 +219,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         }
 
         .menu-item {
+            width: 100%;
             padding: 12px 16px;
+            background: none;
+            border: none;
+            color: inherit;
+            font: inherit;
+            text-align: left;
             cursor: pointer;
             border-radius: 6px;
             transition: background 0.2s;
@@ -228,7 +234,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             align-items: center;
         }
 
-        .menu-item:hover {
+        .menu-item:hover,
+        .menu-item:focus-visible {
             background: rgba(255, 255, 255, 0.1);
         }
 
@@ -596,6 +603,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             color: #a0aec0;
         }
 
+        .range-explode {
+            color: #2AE3F3;
+        }
+
         /* Range label badges: (Abs), (Mod), and (Limit) */
         .range-label {
             font-size: 0.85em;
@@ -789,23 +800,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         </div>
 
         <div class="menu" id="menu">
-            <div class="menu-item" data-mode="auto">
+            <button type="button" class="menu-item" data-mode="auto">
                 <span class="menu-label">Auto (Responsive)</span>
-                <span class="menu-check">✓</span>
-            </div>
-            <div class="menu-item" data-mode="keyboard">
+                <span class="menu-check" aria-hidden="true">✓</span>
+            </button>
+            <button type="button" class="menu-item" data-mode="keyboard">
                 <span class="menu-label">External Keyboard</span>
-                <span class="menu-check">✓</span>
-            </div>
-            <div class="menu-item" data-mode="keypad">
+                <span class="menu-check" aria-hidden="true">✓</span>
+            </button>
+            <button type="button" class="menu-item" data-mode="keypad">
                 <span class="menu-label">Onscreen Keypad</span>
-                <span class="menu-check">✓</span>
-            </div>
+                <span class="menu-check" aria-hidden="true">✓</span>
+            </button>
             <hr class="menu-separator">
-            <div class="menu-item" data-setting="fit-to-width">
+            <button type="button" class="menu-item" data-setting="fit-to-width">
                 <span class="menu-label">Fit to Width</span>
-                <span class="menu-check">✓</span>
-            </div>
+                <span class="menu-check" aria-hidden="true">✓</span>
+            </button>
         </div>
     </div>
 
@@ -1217,6 +1228,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       return s;
     },
 
+    _getDefaultSortState(filterAction, filterDirection, filterCount) {
+      if (!filterAction || !filterDirection || !filterCount) return 'original';
+      return filterDirection === 'high' ? 'desc' : 'asc';
+    },
+
     _formatChain(detail) {
       if (!detail.chain || detail.chain.length <= 1) return `${detail.raw}`;
       if (detail.compound) return `${detail.displayValue}!!`;
@@ -1303,7 +1319,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * Compute result for distributed modifier mode.
      * @private
      */
-    _computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling) {
+    _computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling, explodeMode, sortState) {
       const effectiveCount = keptDetails.length;
       const dieResults = rollDetails.map(d => {
         const modified = d.displayValue + modifier;
@@ -1353,7 +1369,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       return {
         formula, mode: 'distributed', dieResults, rollDetails, total, modifier, rangeRaw, rangeMod, rangeLimit, sides,
-        floor, ceiling, hasClamp
+        floor, ceiling, hasClamp, explodeMode, sortState
       };
     },
 
@@ -1361,7 +1377,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
      * Compute result for aggregated modifier mode.
      * @private
      */
-    _computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling) {
+    _computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling, explodeMode, sortState) {
       const effectiveCount = keptDetails.length;
       const rolls = rollDetails.map(d => d.raw);
       const rawSum = keptDetails.reduce((s, d) => s + d.displayValue, 0);
@@ -1390,7 +1406,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
       const rangeLimit = hasClamp ? {min: limitMin, max: limitMax} : null;
       return {
         formula, mode: 'aggregated', rolls, rollDetails, rawSum, modifiedSum, total, indicator, modifier, rangeRaw, rangeMod, rangeLimit, sides,
-        floor, ceiling, hasClamp
+        floor, ceiling, hasClamp, explodeMode, sortState
       };
     },
 
@@ -1424,20 +1440,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
       const keptDetails = rollDetails.filter(d => d.kept);
       const effectiveCount = keptDetails.length;
+      const sortState = this._getDefaultSortState(filterAction, filterDirection, filterCount);
 
       if (modifierMode === 'none') {
         const rolls = rollDetails.map(d => d.raw);
         const total = keptDetails.reduce((s, d) => s + d.displayValue, 0);
         const min = effectiveCount;
         const max = effectiveCount * sides;
-        return {formula, mode: 'none', rolls, rollDetails, total, min, max, sides};
+        return {formula, mode: 'none', rolls, rollDetails, total, min, max, sides, explodeMode, sortState};
       }
 
       if (modifierMode === 'distributed') {
-        return this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling);
+        return this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling, explodeMode, sortState);
       }
 
-      return this._computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling);
+      return this._computeAggregatedResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling, explodeMode, sortState);
     },
 
     /**
@@ -1716,18 +1733,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
          * @param {{min,max}|null} rangeLimit
          * @returns {string}
          */
-        const buildRangeStr = (rangeRaw, rangeMod, rangeLimit) => {
+        const rangeSuffix = (explodeMode) => {
+          if (explodeMode === 'compound') {
+            return '<span class="range-explode" title="Dice explode and compound into a single total.">!!</span>';
+          }
+          if (explodeMode === 'standard') {
+            return '<span class="range-explode" title="Dice explode on max value.">!</span>';
+          }
+          return '';
+        };
+
+        const formatRange = (range, explodeMode) => `${range.min}..${range.max}${rangeSuffix(explodeMode)}`;
+
+        const buildRangeStr = (rangeRaw, rangeMod, rangeLimit, explodeMode) => {
           const modOrRaw = rangeMod || rangeRaw;
           if (rangeLimit) {
-            return `${rangeLimit.min}–${rangeLimit.max} <span class="range-label">(Limit)</span>` +
-              `&nbsp;&nbsp;${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
-              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Abs)</span>`;
+            return `${formatRange(rangeLimit, explodeMode)} <span class="range-label">(Limit)</span>` +
+              `&nbsp;&nbsp;${formatRange(modOrRaw, explodeMode)} <span class="range-label">(Mod)</span>` +
+              `&nbsp;&nbsp;${formatRange(rangeRaw, explodeMode)} <span class="range-label">(Abs)</span>`;
           }
           if (modOrRaw.min !== rangeRaw.min || modOrRaw.max !== rangeRaw.max) {
-            return `${modOrRaw.min}–${modOrRaw.max} <span class="range-label">(Mod)</span>` +
-              `&nbsp;&nbsp;${rangeRaw.min}–${rangeRaw.max} <span class="range-label">(Abs)</span>`;
+            return `${formatRange(modOrRaw, explodeMode)} <span class="range-label">(Mod)</span>` +
+              `&nbsp;&nbsp;${formatRange(rangeRaw, explodeMode)} <span class="range-label">(Abs)</span>`;
           }
-          return `${rangeRaw.min}–${rangeRaw.max}`;
+          return formatRange(rangeRaw, explodeMode);
         };
 
         /**
@@ -1783,9 +1812,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             const rollsLabel = `<span class="result-lbl">Rolls:${sortGlyph ? `<span class="sort-indicator" aria-hidden="true">${sortGlyph}</span>` : ''}</span>`;
             const getSortedDetails = (arr) => {
               if (!arr) return arr;
-              if (sortState === 'desc') return arr.slice().sort((a, b) => (b.displayValue ?? b.result ?? 0) - (a.displayValue ?? a.result ?? 0));
-              if (sortState === 'asc') return arr.slice().sort((a, b) => (a.displayValue ?? a.result ?? 0) - (b.displayValue ?? b.result ?? 0));
-              return arr;
+              const direction = sortState === 'desc' ? -1 : sortState === 'asc' ? 1 : 0;
+              if (!direction) return arr;
+              return arr.slice().sort((a, b) => {
+                const aDropped = a.isDropped || a.kept === false;
+                const bDropped = b.isDropped || b.kept === false;
+                if (aDropped !== bDropped) return aDropped ? 1 : -1;
+                const aValue = a.displayValue ?? a.result ?? 0;
+                const bValue = b.displayValue ?? b.result ?? 0;
+                return direction * (aValue - bValue);
+              });
             };
 
             if (r.mode === 'distributed') {
@@ -1822,10 +1858,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 const gameText = Number(stripExplodeMarkers(d.resultDisplay || `${d.result}`));
                 return `<span class="die-cell ${droppedClass}" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${rawText})">` +
                 gameSpan(gameText, d.indicator, maxGameWidth, criticalClass, chipGlowClass) +
-                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${modStr}</span>` +
+                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${d.kept ? modStr : ''}</span>` +
                 `</span>`
               }).join('');
-              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
+              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit, r.explodeMode);
               return `
         <div class="result-item" data-result-index="${rIdx}">
           ${sortHandle}
@@ -1868,7 +1904,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const mathStr = r.modifier >= 0
                 ? `(${r.rawSum}) + ${r.modifier} = ${decoratedTotal}`
                 : `(${r.rawSum}) - ${Math.abs(r.modifier)} = ${decoratedTotal}`;
-              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit);
+              const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit, r.explodeMode);
               return `
         <div class="result-item" data-result-index="${rIdx}">
           ${sortHandle}
@@ -1909,7 +1945,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           <div class="result-formula">${r.formula}</div>
           <div class="result-row"><span class="result-lbl">Total:</span><span class="result-value">${r.total}</span></div>
           <div class="result-row result-row--stacked">${rollsLabel}<span class="result-rolls">${rollsDisplay}</span></div>
-          <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${r.min}–${r.max}</span></div>
+          <div class="result-row"><span class="result-lbl">Range:</span><span class="result-range">${formatRange({min: r.min, max: r.max}, r.explodeMode)}</span></div>
         </div>
       `;
             }
@@ -2294,6 +2330,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
         // Global shortcuts (work in both modes)
         if (e.key === 'Escape') {
+          if (DiceApp.nodes.menu?.classList.contains('active')) {
+            e.preventDefault();
+            ui.closeMenu(true);
+            return;
+          }
           if (!state.isRolling && !state.isSorting) {
             actions.clear();
           }
@@ -2983,6 +3024,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
+            name: "computeResult - keep/drop filters set default sort direction",
+            test: () => {
+              const keepHigh = DiceNotation.computeResult([6, 3, 1], {
+                count: 3, sides: 6, modifier: 0, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'high', filterCount: 1
+              });
+              const keepLow = DiceNotation.computeResult([6, 3, 1], {
+                count: 3, sides: 6, modifier: 0, modifierMode: 'none',
+                filterAction: 'keep', filterDirection: 'low', filterCount: 1
+              });
+              const dropLow = DiceNotation.computeResult([6, 3, 1], {
+                count: 3, sides: 6, modifier: 0, modifierMode: 'none',
+                filterAction: 'drop', filterDirection: 'low', filterCount: 1
+              });
+              const dropHigh = DiceNotation.computeResult([6, 3, 1], {
+                count: 3, sides: 6, modifier: 0, modifierMode: 'none',
+                filterAction: 'drop', filterDirection: 'high', filterCount: 1
+              });
+              return keepHigh.sortState === 'desc' &&
+                keepLow.sortState === 'asc' &&
+                dropLow.sortState === 'asc' &&
+                dropHigh.sortState === 'desc';
+            }
+          },
+          {
             name: "computeResult - precedence explode then filter then modifier",
             test: () => {
               const result = DiceNotation.computeResult([6, 5], {
@@ -3229,6 +3295,87 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.ui.renderResults();
               const html = DiceApp.nodes.results.innerHTML;
               return html.includes('(Mod)') && html.includes('(Abs)') && !html.includes('(Limit)');
+            }
+          },
+          {
+            name: "renderResults - explosion ranges use .. delimiter and max suffix only",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d6!!',
+                mode: 'none',
+                rolls: [6, 2],
+                rollDetails: [
+                  {raw: 6, displayValue: 6, resultDisplay: '6!!', kept: true, isDropped: false, isCriticalSuccess: true, isCriticalFailure: false},
+                  {raw: 2, displayValue: 2, resultDisplay: '2', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false}
+                ],
+                total: 8,
+                min: 2,
+                max: 12,
+                sides: 6,
+                explodeMode: 'compound'
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const range = DiceApp.nodes.results.querySelector('.result-range');
+              const suffix = range?.querySelector('.range-explode');
+              return range?.textContent.trim() === '2..12!!' &&
+                suffix?.textContent === '!!' &&
+                suffix?.getAttribute('title') === 'Dice explode and compound into a single total.';
+            }
+          },
+          {
+            name: "renderResults - dropped distributed dice omit modifier terms after filtering",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d6--1-1+4',
+                mode: 'distributed',
+                dieResults: [
+                  {raw: 6, rawDisplay: '6', result: 4, resultDisplay: '4', indicator: '^', kept: true, isDropped: false, chain: [6], compound: false, isCriticalSuccess: true, isCriticalFailure: false},
+                  {raw: 1, rawDisplay: '1', result: 1, resultDisplay: '1', indicator: '', kept: false, isDropped: true, chain: [1], compound: false, isCriticalSuccess: false, isCriticalFailure: true}
+                ],
+                total: 4,
+                modifier: -1,
+                rangeRaw: {min: 1, max: 12},
+                rangeMod: {min: 0, max: 10},
+                rangeLimit: {min: 2, max: 8},
+                sides: 6,
+                floor: 2,
+                ceiling: 4,
+                hasClamp: true
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const droppedRaw = DiceApp.nodes.results.querySelector('.die-cell.die-dropped .die-raw');
+              return droppedRaw?.textContent === '=1' &&
+                !droppedRaw.textContent.includes('-1');
+            }
+          },
+          {
+            name: "renderResults - sorted kept dice stay ahead of dropped dice",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '4d6+-2',
+                mode: 'none',
+                rolls: [1, 4, 6, 2],
+                rollDetails: [
+                  {raw: 1, displayValue: 1, resultDisplay: '1', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: true},
+                  {raw: 4, displayValue: 4, resultDisplay: '4', kept: false, isDropped: true, isCriticalSuccess: false, isCriticalFailure: false},
+                  {raw: 6, displayValue: 6, resultDisplay: '6', kept: false, isDropped: true, isCriticalSuccess: true, isCriticalFailure: false},
+                  {raw: 2, displayValue: 2, resultDisplay: '2', kept: true, isDropped: false, isCriticalSuccess: false, isCriticalFailure: false}
+                ],
+                total: 3,
+                min: 2,
+                max: 24,
+                sides: 6,
+                sortState: 'desc'
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const chunks = [...DiceApp.nodes.results.querySelectorAll('.roll-chunk')];
+              const values = chunks.map(node => node.textContent.trim()).join(',');
+              const droppedFlags = chunks.map(node => node.classList.contains('die-dropped')).join(',');
+              return values === '2,1,6,4' &&
+                droppedFlags === 'false,false,true,true';
             }
           },
           {
