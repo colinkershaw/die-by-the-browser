@@ -125,30 +125,30 @@ One or two limit parameters can be used to clamp the result:
 - `-F` → floor (minimum value)
 - `+C` → ceiling (maximum value)
 
-| Notation   | Meaning                                        |
-|------------|------------------------------------------------|
-| `NdX-M-F`  | Distributed: each die result cannot go below F |
-| `NdX+M+C`  | Distributed: each die result cannot exceed C   |
-| `NdX-M-F+C` / `NdX+M-F+C` | Distributed: each die result is clamped to both floor and ceiling |
-| `NdX -M-F` | Aggregated: the total cannot go below F        |
-| `NdX +M+C` | Aggregated: the total cannot exceed C          |
-| `NdX -M-F+C` / `NdX +M-F+C` | Aggregated: total is clamped to both floor and ceiling |
+| Notation                    | Meaning                                                           |
+|-----------------------------|-------------------------------------------------------------------|
+| `NdX-M-F`                   | Distributed: each die result cannot go below F                    |
+| `NdX+M+C`                   | Distributed: each die result cannot exceed C                      |
+| `NdX-M-F+C` / `NdX+M-F+C`   | Distributed: each die result is clamped to both floor and ceiling |
+| `NdX -M-F`                  | Aggregated: the total cannot go below F                           |
+| `NdX +M+C`                  | Aggregated: the total cannot exceed C                             |
+| `NdX -M-F+C` / `NdX +M-F+C` | Aggregated: total is clamped to both floor and ceiling            |
 
 **Examples:**
 
-| Notation    | Meaning                                                          |
-|-------------|------------------------------------------------------------------|
-| `3d4-3-1`   | Roll 3d4; subtract 3 from each die; each result has a floor of 1 |
-| `3d4+2+6`   | Roll 3d4; add 2 to each die; each result has a ceiling of 6      |
-| `3d4 -3-0`  | Roll 3d4, then subtract 3 from total; total has a floor of 0     |
-| `4d6 +5+20` | Roll 4d6, add 5 to total; total capped at 20                     |
-| `3d6+2-3+7` | Roll 3d6; add 2 to each die; each result is clamped to 3..7      |
+| Notation    | Meaning                                                                   |
+|-------------|---------------------------------------------------------------------------|
+| `3d4-3-1`   | Roll 3d4; subtract 3 from each die; each result has a floor of 1          |
+| `3d4+2+5`   | Roll 3d4; add 2 to each die; each result has a ceiling of 5               |
+| `3d4 -3-0`  | Roll 3d4, then subtract 3 from total; total has a floor of 0              |
+| `4d6 +5+20` | Roll 4d6, add 5 to total; total capped at 20                              |
+| `3d6+2-3+7` | Roll 3d6; add 2 to each die; each result is clamped to floor 3, ceiling 7 |
 
 Results that were clamped to the floor are underlined; results clamped to the ceiling have an overline.
 
 > You can combine floor and ceiling in either order after a modifier (for example `3d6+2+7-3` and `3d6+2-3+7`). 
 > 
-> _Tip: adding (or subtracting) zero allows you add floor and/or ceiling without actually modifying the roll (for example `3d6+0-3+7`)._
+> _**Tip**: adding (or subtracting) zero allows you have a floor and/or ceiling without actually modifying the roll (for example `3d6+0-2+5`)._
 
 ### Exploding Dice
 

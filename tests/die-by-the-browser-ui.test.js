@@ -221,7 +221,11 @@ test.describe('DiceApp - Desktop Mode', () => {
     await page.waitForFunction(() => !DiceApp.state.isSorting);
 
     await expect(sortHandle).toHaveAttribute('data-sort', 'asc');
-    await expect(result.locator('.roll-val')).toHaveText(['1', '2', '4', '6']);
+    await expect(result.locator('.roll-val')).toHaveCount(4);
+    // Important Note: remember that sorting respects retained vs discarded groups: 4 and 6 were kept and any
+    // remaining rolls (1 and 2 in this test) were discarded: so 4, 6 are kept in ascending order separate from 1, 2.
+    await expect(result.locator('.roll-val')).toHaveText(['4', '6', '1', '2']);
+    await expect(sortHandle).toHaveAttribute('data-sort', 'asc');
   });
 
   test('should keep kept low dice ahead of discarded dice when toggled to descending sort', async ({page}) => {
@@ -238,10 +242,12 @@ test.describe('DiceApp - Desktop Mode', () => {
     await page.waitForFunction(() => !DiceApp.state.isSorting);
 
     await expect(sortHandle).toHaveAttribute('data-sort', '');
+    await expect(result.locator('.roll-val')).toHaveText(['1', '4', '6', '2']);
 
     await sortHandle.click();
     await page.waitForFunction(() => !DiceApp.state.isSorting);
 
+    await expect(sortHandle).toHaveAttribute('data-sort', 'desc');
     const chunks = result.locator('.roll-chunk');
     await expect(result.locator('.roll-val')).toHaveText(['2', '1', '6', '4']);
     await expect(chunks.nth(0)).not.toHaveClass(/die-dropped/);
