@@ -2375,6 +2375,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
           // Don't intercept browser shortcuts (Alt+D, Ctrl+L, etc.)
           if (e.altKey || e.ctrlKey || e.metaKey) return;
 
+          const target = e.target;
+          const isFocusableButtonLike = target && (
+            target.tagName === 'BUTTON' ||
+            target.getAttribute?.('role') === 'button'
+          );
+          // Preserve native Space activation for focused controls
+          if ((e.key === ' ' || e.key === 'Spacebar') && isFocusableButtonLike) {
+            return;
+          }
+
           // Check if key is mapped
           const mapped = this.keyMap[e.key];
           if (mapped) {
