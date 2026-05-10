@@ -1463,4 +1463,18 @@ test.describe('DiceApp - Keypad Enhancements', () => {
     await page.click('#clearBtn');
     await expect(page.locator('#dicePseudoInput')).toHaveClass(/empty/);
   });
+
+  test('should activate focused keypad button with Space in keypad mode', async ({page}) => {
+    await page.click('#clearBtn');
+    await page.focus('button[data-value="7"]');
+    await page.keyboard.press('Space');
+    await expect(page.locator('#dicePseudoInput')).toContainText('7');
+    await expect(page.locator('button[data-value="7"]')).toBeFocused();
+  });
+
+  test('should open hamburger menu with Space in keypad mode', async ({page}) => {
+    await page.focus('#hamburger');
+    await page.keyboard.press('Space');
+    await expect(page.locator('#menu')).toHaveClass(/active/);
+  });
 });
