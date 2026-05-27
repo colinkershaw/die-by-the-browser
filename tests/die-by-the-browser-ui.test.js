@@ -835,15 +835,25 @@ test.describe('DiceApp - Advanced Mechanics', () => {
     await expect(page.locator('.die-raw').nth(2)).toHaveText('=4+5');
   });
 
-  test('should omit distributed modifier terms on dropped dice after drop-low filtering with ceiling', async ({page}) => {
+  test('should include distributed modifier terms on dropped dice after drop-low filtering with ceiling', async ({page}) => {
     await setMockRandom(page, [0, 0.999999]);
     await page.fill('#diceInput', '2d6--1-1+4');
     await page.click('#rollBtn');
 
     await expect(page.locator('.die-cell')).toHaveCount(2);
-    await expect(page.locator('.die-cell.die-dropped .die-raw')).toHaveText('=1');
+    await expect(page.locator('.die-cell.die-dropped .die-raw')).toHaveText('=1-1');
     await expect(page.locator('.die-cell:not(.die-dropped) .die-raw')).toHaveText('=6-1');
     await expect(page.locator('.die-cell:not(.die-dropped) .die-clamp-ceiling')).toHaveCount(1);
+  });
+
+  test('should render dropped distributed game values with modifiers after filtering', async ({page}) => {
+    await setMockRandom(page, [0, 0.999999]);
+    await page.fill('#diceInput', '2d100--1-2');
+    await page.click('#rollBtn');
+
+    await expect(page.locator('.die-cell')).toHaveCount(2);
+    await expect(page.locator('.die-cell.die-dropped .die-game-val')).toHaveText('-1');
+    await expect(page.locator('.die-cell.die-dropped .die-raw')).toHaveText('=1-2');
   });
 
   test('should render aggregated math row and range labels', async ({page}) => {

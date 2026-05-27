@@ -1345,17 +1345,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
         const modified = d.displayValue + modifier;
         let result = modified;
         let indicator = '';
-        if (d.kept) {
-          if (floor !== null && result < floor) { result = floor; indicator = '*'; }
-          if (ceiling !== null && result > ceiling) { result = ceiling; indicator = '^'; }
-        }
+        if (floor !== null && result < floor) { result = floor; indicator = '*'; }
+        if (ceiling !== null && result > ceiling) { result = ceiling; indicator = '^'; }
         return {
           raw: d.raw,
           rawDisplay: d.rawDisplay,
-          result: d.kept ? result : d.displayValue,
-          resultDisplay: d.kept
-            ? (d.compound && d.chain.length > 1 ? `${result}!!` : `${result}`)
-            : d.resultDisplay,
+          result,
+          resultDisplay: d.compound && d.chain.length > 1 ? `${result}!!` : `${result}`,
           indicator,
           kept: d.kept,
           isDropped: d.isDropped,
@@ -1855,14 +1851,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const theoreticalMaxGame = r.ceiling !== null ? r.ceiling : r.sides + r.modifier;
               const hasCompoundExplode = r.dieResults.some(d => d.compound);
               const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
-              const hasDroppedDice = r.dieResults.some(d => d.isDropped);
               const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
               const maxGameWidth = hasCompoundExplode
                 ? compoundWidth
                 : Math.max(
                   String(theoreticalMinGame).length,
-                  String(theoreticalMaxGame).length,
-                  hasDroppedDice ? maxRawWidth : 0
+                  String(theoreticalMaxGame).length
                 );
 
               const rollsDisplay = getSortedDetails(r.dieResults).map(d => {
@@ -1884,7 +1878,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
                 const gameText = Number(stripExplodeMarkers(d.resultDisplay || `${d.result}`));
                 return `<span class="die-cell ${droppedClass}" role="group" aria-label="die: ${d.result}${d.indicator} (raw: ${rawText})">` +
                 gameSpan(gameText, d.indicator, maxGameWidth, criticalClass, chipGlowClass) +
-                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${d.kept ? modStr : ''}</span>` +
+                `<span class="die-raw">=<span class="die-raw-val" style="min-width:${maxRawWidth}ch">${rawValue}</span>${modStr}</span>` +
                 `</span>`
               }).join('');
               const rangeStr = buildRangeStr(r.rangeRaw, r.rangeMod || null, r.rangeLimit, r.explodeMode);
@@ -3448,7 +3442,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             }
           },
           {
-            name: "renderResults - dropped distributed dice omit modifier terms after filtering",
+            name: "renderResults - dropped distributed dice include modifier terms after filtering",
             test: () => {
               DiceApp.state.rollResults = [{
                 formula: '2d6--1-1+4',
@@ -3470,19 +3464,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.state.errorMessage = '';
               DiceApp.ui.renderResults();
               const droppedRaw = DiceApp.nodes.results.querySelector('.die-cell.die-dropped .die-raw');
-              return droppedRaw?.textContent === '=1' &&
-                !droppedRaw.textContent.includes('-1');
+              return droppedRaw?.textContent === '=1-1';
             }
           },
           {
-            name: "renderResults - dropped distributed dice reserve raw-width chip columns",
+            name: "renderResults - dropped distributed dice do not reserve raw-width chip columns",
             test: () => {
               DiceApp.state.rollResults = [{
                 formula: '2d100--1-2',
                 mode: 'distributed',
                 dieResults: [
                   {raw: 1, rawDisplay: '1', result: -1, resultDisplay: '-1', indicator: '', kept: true, isDropped: false, chain: [1], compound: false, isCriticalSuccess: false, isCriticalFailure: true},
-                  {raw: 100, rawDisplay: '100', result: 100, resultDisplay: '100', indicator: '', kept: false, isDropped: true, chain: [100], compound: false, isCriticalSuccess: true, isCriticalFailure: false}
+                  {raw: 100, rawDisplay: '100', result: 98, resultDisplay: '98', indicator: '', kept: false, isDropped: true, chain: [100], compound: false, isCriticalSuccess: true, isCriticalFailure: false}
                 ],
                 total: -1,
                 modifier: -2,
@@ -3498,7 +3491,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.ui.renderResults();
               const widths = [...DiceApp.nodes.results.querySelectorAll('.die-game-val')]
                 .map((node) => node.style.minWidth);
-              return widths.length === 2 && widths.every((w) => w === '3ch');
+              return widths.length === 2 && widths.every((w) => w === '2ch');
             }
           },
           {
