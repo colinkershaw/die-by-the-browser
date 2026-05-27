@@ -1855,8 +1855,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const theoreticalMaxGame = r.ceiling !== null ? r.ceiling : r.sides + r.modifier;
               const hasCompoundExplode = r.dieResults.some(d => d.compound);
               const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
-              const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
               const hasDroppedDice = r.dieResults.some(d => d.isDropped);
+              const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
               const maxGameWidth = hasCompoundExplode
                 ? compoundWidth
                 : Math.max(
@@ -3478,7 +3478,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
             name: "renderResults - dropped distributed dice reserve raw-width chip columns",
             test: () => {
               DiceApp.state.rollResults = [{
-                formula: '2d100-+1-2',
+                formula: '2d100--1-2',
                 mode: 'distributed',
                 dieResults: [
                   {raw: 1, rawDisplay: '1', result: -1, resultDisplay: '-1', indicator: '', kept: true, isDropped: false, chain: [1], compound: false, isCriticalSuccess: false, isCriticalFailure: true},
