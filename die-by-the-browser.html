@@ -1855,10 +1855,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const theoreticalMaxGame = r.ceiling !== null ? r.ceiling : r.sides + r.modifier;
               const hasCompoundExplode = r.dieResults.some(d => d.compound);
               const compoundWidth = String(r.sides * DiceNotation.MAX_EXPLOSION_ITERATIONS).length;
+              const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
+              const hasDroppedDice = r.dieResults.some(d => d.isDropped);
               const maxGameWidth = hasCompoundExplode
                 ? compoundWidth
-                : Math.max(String(theoreticalMinGame).length, String(theoreticalMaxGame).length);
-              const maxRawWidth = hasCompoundExplode ? compoundWidth : String(r.sides).length;
+                : Math.max(
+                  String(theoreticalMinGame).length,
+                  String(theoreticalMaxGame).length,
+                  hasDroppedDice ? maxRawWidth : 0
+                );
 
               const rollsDisplay = getSortedDetails(r.dieResults).map(d => {
                 const criticalClass = d.isCriticalSuccess
@@ -3467,6 +3472,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               const droppedRaw = DiceApp.nodes.results.querySelector('.die-cell.die-dropped .die-raw');
               return droppedRaw?.textContent === '=1' &&
                 !droppedRaw.textContent.includes('-1');
+            }
+          },
+          {
+            name: "renderResults - dropped distributed dice reserve raw-width chip columns",
+            test: () => {
+              DiceApp.state.rollResults = [{
+                formula: '2d100-+1-2',
+                mode: 'distributed',
+                dieResults: [
+                  {raw: 1, rawDisplay: '1', result: -1, resultDisplay: '-1', indicator: '', kept: true, isDropped: false, chain: [1], compound: false, isCriticalSuccess: false, isCriticalFailure: true},
+                  {raw: 100, rawDisplay: '100', result: 100, resultDisplay: '100', indicator: '', kept: false, isDropped: true, chain: [100], compound: false, isCriticalSuccess: true, isCriticalFailure: false}
+                ],
+                total: -1,
+                modifier: -2,
+                rangeRaw: {min: 1, max: 200},
+                rangeMod: {min: -1, max: 196},
+                rangeLimit: null,
+                sides: 100,
+                floor: null,
+                ceiling: null,
+                hasClamp: false
+              }];
+              DiceApp.state.errorMessage = '';
+              DiceApp.ui.renderResults();
+              const widths = [...DiceApp.nodes.results.querySelectorAll('.die-game-val')]
+                .map((node) => node.style.minWidth);
+              return widths.length === 2 && widths.every((w) => w === '3ch');
             }
           },
           {
