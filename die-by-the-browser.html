@@ -3491,7 +3491,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
               DiceApp.ui.renderResults();
               const widths = [...DiceApp.nodes.results.querySelectorAll('.die-game-val')]
                 .map((node) => node.style.minWidth);
-              return widths.length === 2 && widths.every((w) => w === '2ch');
+              const droppedGame = DiceApp.nodes.results.querySelector('.die-cell.die-dropped .die-game-val');
+              return widths.length === 2 &&
+                widths.every((w) => w === '2ch') &&
+                droppedGame?.textContent === '98';
             }
           },
           {
