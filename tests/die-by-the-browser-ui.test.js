@@ -764,15 +764,15 @@ test.describe('DiceApp - Advanced Mechanics', () => {
     const style = await droppedDie.evaluate((node) => {
       const computed = getComputedStyle(node);
       return {
-        opacity: computed.opacity,
-        textDecorationLine: computed.textDecorationLine,
-        textDecorationThickness: computed.textDecorationThickness
+        background: computed.background,
+        opacity: computed.opacity
       };
     });
 
+    expect(style.background).toContain('repeating-linear-gradient');
     expect(parseFloat(style.opacity)).toBeLessThanOrEqual(0.6);
-    expect(style.textDecorationLine).toContain('line-through');
-    expect(parseFloat(style.textDecorationThickness)).toBeGreaterThanOrEqual(2);
+    //expect(style.textDecorationLine).toContain('line-through');
+    //expect(parseFloat(style.textDecorationThickness)).toBeGreaterThanOrEqual(2);
   });
 
   test('should show critical success styling on nat max', async ({page}) => {
@@ -942,16 +942,23 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
 
+    // Keep the loading overlay visible long enough for Playwright to observe it reliably.
+    await page.evaluate(() => {
+      DiceApp.BUSY_DEFER_MS = 250;
+    });
+
     const loading = page.locator('.loading');
     const spinner = page.locator('.spinner');
 
-    // Start expensive roll
+    // Start expensive roll and synchronize with the app entering rolling state.
     await page.fill('#diceInput', '20000d6');
+    const rollStarted = page.waitForFunction(() => DiceApp.state.isRolling === true);
     await page.press('#diceInput', 'Enter');
+    await rollStarted;
 
     // Assert spinner/overlay appears
-    await expect.poll(async () => await loading.isVisible()).toBe(true);
-    await expect.poll(async () => await spinner.isVisible()).toBe(true);
+    await expect(loading).toBeVisible();
+    await expect(spinner).toBeVisible();
 
     // Assert it eventually disappears
     await expect(loading).toBeHidden({timeout: 15000});
@@ -964,6 +971,11 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
 
+    // Keep the loading overlay visible long enough for Playwright to observe it reliably.
+    await page.evaluate(() => {
+      DiceApp.BUSY_DEFER_MS = 250;
+    });
+
     const loading = page.locator('.loading');
 
     await page.fill('#diceInput', '20000d6');
@@ -973,8 +985,10 @@ test.describe('DiceApp - Rolling... Spinner', () => {
 
     const beforeHeight = await page.locator('#results').evaluate((el) => Math.ceil(el.getBoundingClientRect().height));
 
+    const rollStarted = page.waitForFunction(() => DiceApp.state.isRolling === true);
     await page.press('#diceInput', 'Enter');
-    await expect.poll(async () => await loading.isVisible()).toBe(true);
+    await rollStarted;
+    await expect(loading).toBeVisible();
 
     const during = await page.evaluate(() => {
       const results = document.getElementById('results');
