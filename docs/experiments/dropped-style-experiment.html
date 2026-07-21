@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dropped Roll Visual Lab</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --mono-font: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Roboto Mono", "Liberation Mono";
+
+            --drop-color: #8c96ac;
+            --drop-opacity: 0.55;
+            --drop-line-color: rgba(180, 192, 214, 0.9);
+            --drop-line-thickness: 2px;
+            --drop-slash-angle: -25deg;
+            --drop-slash-inset: 0px;
+            --drop-decoration-style: solid;
+
+            --glow-core: 42, 227, 243;
+            --glow-mid: 0, 180, 255;
+            --inner-spread: 6px;
+            --inner-opacity: 0.50;
+            --outer-spread: 10px;
+            --outer-opacity: 0.80;
+            --border-opacity: 0.70;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0e1f;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            color: #ffffff;
+        }
+
+        .container {
+            background: #0B1637;
+            color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            max-width: 720px;
+            width: 100%;
+            padding: 15px;
+        }
+
+        h1 {
+            color: #2AE3F3;
+            text-align: center;
+            font-size: 1.45em;
+            margin-bottom: 14px;
+        }
+
+        .subtitle {
+            color: #a0aec0;
+            text-align: center;
+            font-size: 0.92em;
+            margin-bottom: 18px;
+            line-height: 1.4;
+        }
+
+        .controls {
+            background: #0d142d;
+            border: 1px solid rgba(42, 227, 243, 0.25);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 16px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .control-row {
+            display: grid;
+            grid-template-columns: 150px 1fr auto;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .control-row--buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        label {
+            color: #a0aec0;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select,
+        input[type="range"],
+        input[type="color"] {
+            width: 100%;
+        }
+
+        select {
+            background: #252d4a;
+            color: #ffffff;
+            border: 1px solid rgba(42, 227, 243, 0.35);
+            border-radius: 8px;
+            padding: 8px;
+            font: inherit;
+        }
+
+        input[type="color"] {
+            height: 34px;
+            background: #252d4a;
+            border: 1px solid rgba(42, 227, 243, 0.35);
+            border-radius: 8px;
+            padding: 2px;
+        }
+
+        .value-readout {
+            color: #2AE3F3;
+            font-family: var(--mono-font), monospace;
+            font-size: 0.9em;
+            min-width: 58px;
+            text-align: right;
+        }
+
+        button {
+            flex: 1;
+            min-width: 110px;
+            padding: 10px 12px;
+            font-size: 0.95em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+            background: #252d4a;
+            color: #ffffff;
+        }
+
+        button:hover {
+            background: #303b5e;
+            transform: translateY(-1px);
+        }
+
+        button.primary {
+            background: #2AE3F3;
+            color: #0d142d;
+        }
+
+        button.primary:hover {
+            background: #23cbd9;
+            box-shadow: 0 5px 15px rgba(42, 227, 243, 0.25);
+        }
+
+        .results {
+            background: #0d142d;
+            border-radius: 10px;
+            padding: 5px;
+            min-height: 100px;
+        }
+
+        .result-item {
+            background: #1a2238;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #2AE3F3;
+            color: #ffffff;
+            position: relative;
+        }
+
+        .result-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-formula {
+            font-weight: 600;
+            color: #2AE3F3;
+            margin-bottom: 8px;
+            font-family: var(--mono-font), monospace;
+        }
+
+        .result-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        .result-row--stacked {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .result-lbl {
+            color: #a0aec0;
+            font-size: 0.78em;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            min-width: 50px;
+            flex-shrink: 0;
+        }
+
+        .result-value {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .result-rolls {
+            font-size: 1.2em;
+            color: #2AE3F3;
+            font-family: var(--mono-font), monospace;
+            background: rgba(42, 227, 243, 0.08);
+            padding: 3px 8px;
+            border-radius: 4px;
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 2px 6px;
+        }
+
+        .roll-chunk,
+        .die-game {
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+            padding: 2px 3px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 2px solid rgba(42, 227, 243, 0.10);
+            border-radius: 5px;
+        }
+
+        .roll-val,
+        .die-game-val {
+            display: inline-block;
+            text-align: center;
+            min-width: 3ch;
+            color: #2AE3F3;
+            font-weight: 500;
+        }
+
+        .die-critical-success {
+            color: #4ade80;
+            font-weight: 700;
+        }
+
+        .die-critical-failure {
+            color: #f87171;
+            font-weight: 700;
+        }
+
+        .die-explode-standard {
+            border-color: rgba(var(--glow-core), var(--border-opacity)) !important;
+            box-shadow:
+                    0 0 var(--inner-spread) rgba(var(--glow-core), var(--inner-opacity)),
+                    0 0 var(--outer-spread) rgba(var(--glow-mid), var(--outer-opacity));
+        }
+
+        .result-range {
+            font-size: 0.85em;
+            color: #a0aec0;
+            font-family: var(--mono-font), monospace;
+        }
+
+        .range-label {
+            font-size: 0.85em;
+            color: #718096;
+            margin-left: 2px;
+            font-family: inherit;
+        }
+
+        .visual-label {
+            color: #718096;
+            font-size: 0.78em;
+            margin-left: 4px;
+        }
+
+        /*
+          Experimental dropped/ignored-roll visuals.
+          The controls change body[data-drop-style].
+        */
+
+        .die-dropped {
+            color: var(--drop-color);
+            opacity: var(--drop-opacity);
+        }
+
+        .die-dropped .roll-val {
+            color: var(--drop-color);
+        }
+
+        body[data-drop-style="line-through"] .die-dropped {
+            text-decoration-line: line-through;
+            text-decoration-thickness: var(--drop-line-thickness);
+            text-decoration-color: var(--drop-line-color);
+            text-decoration-style: var(--drop-decoration-style);
+            text-decoration-skip-ink: none;
+        }
+
+        body[data-drop-style="underline"] .die-dropped {
+            text-decoration-line: underline;
+            text-decoration-thickness: var(--drop-line-thickness);
+            text-decoration-color: var(--drop-line-color);
+            text-decoration-style: var(--drop-decoration-style);
+            text-underline-offset: 3px;
+            text-decoration-skip-ink: none;
+        }
+
+        body[data-drop-style="overline"] .die-dropped {
+            text-decoration-line: overline;
+            text-decoration-thickness: var(--drop-line-thickness);
+            text-decoration-color: var(--drop-line-color);
+            text-decoration-style: var(--drop-decoration-style);
+            text-decoration-skip-ink: none;
+        }
+
+        body[data-drop-style="underline-overline"] .die-dropped {
+            text-decoration-line: underline overline;
+            text-decoration-thickness: var(--drop-line-thickness);
+            text-decoration-color: var(--drop-line-color);
+            text-decoration-style: var(--drop-decoration-style);
+            text-underline-offset: 3px;
+            text-decoration-skip-ink: none;
+        }
+
+        body[data-drop-style="slash"] .die-dropped,
+        body[data-drop-style="x"] .die-dropped {
+            position: relative;
+            text-decoration: none;
+        }
+
+        body[data-drop-style="slash"] .die-dropped::after,
+        body[data-drop-style="x"] .die-dropped::before,
+        body[data-drop-style="x"] .die-dropped::after {
+            content: "";
+            position: absolute;
+            left: var(--drop-slash-inset);
+            right: var(--drop-slash-inset);
+            top: 50%;
+            height: var(--drop-line-thickness);
+            background: var(--drop-line-color);
+            transform: rotate(var(--drop-slash-angle));
+            transform-origin: center;
+            pointer-events: none;
+            border-radius: 999px;
+        }
+
+        body[data-drop-style="x"] .die-dropped::before {
+            transform: rotate(calc(var(--drop-slash-angle) * -1));
+        }
+
+        body[data-drop-style="background"] .die-dropped {
+            text-decoration: none;
+            background:
+                    repeating-linear-gradient(
+                            -45deg,
+                            rgba(180, 192, 214, 0.18) 0,
+                            rgba(180, 192, 214, 0.18) 3px,
+                            transparent 3px,
+                            transparent 7px
+                    );
+        }
+
+        body[data-drop-style="ghost"] .die-dropped {
+            text-decoration: none;
+            filter: grayscale(0.7);
+        }
+
+        body[data-drop-style="boxed"] .die-dropped {
+            text-decoration: none;
+            border-color: var(--drop-line-color);
+            border-style: dashed;
+        }
+
+        @media (max-width: 560px) {
+            body {
+                padding: 0;
+            }
+
+            .container {
+                border-radius: 0;
+                max-width: none;
+            }
+
+            .control-row {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+
+            .value-readout {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+
+<body data-drop-style="line-through">
+<div class="container">
+    <h1>Dropped Roll Visual Lab</h1>
+    <p class="subtitle">
+        Quick sandbox for experimenting with ignored/discarded die visuals.
+        Dropped dice are marked with the experimental style; max rolls are green, minimum rolls are red.
+    </p>
+
+    <section class="controls" aria-label="Visual controls">
+        <div class="control-row">
+            <label for="styleSelect">Dropped style</label>
+            <select id="styleSelect">
+                <option value="line-through">Line-through</option>
+                <option value="underline">Underline</option>
+                <option value="overline">Overline</option>
+                <option value="underline-overline">Underline + overline</option>
+                <option value="slash">Diagonal slash</option>
+                <option value="x">X slash</option>
+                <option value="background">Diagonal background</option>
+                <option value="ghost">Ghost only</option>
+                <option value="boxed">Dashed box</option>
+            </select>
+            <span class="value-readout" id="styleReadout">line-through</span>
+        </div>
+
+        <div class="control-row">
+            <label for="decorationStyle">Line style</label>
+            <select id="decorationStyle">
+                <option value="solid">solid</option>
+                <option value="dashed">dashed</option>
+                <option value="dotted">dotted</option>
+                <option value="double">double</option>
+                <option value="wavy">wavy</option>
+            </select>
+            <span class="value-readout" id="decorationReadout">solid</span>
+        </div>
+
+        <div class="control-row">
+            <label for="opacityRange">Dropped opacity</label>
+            <input id="opacityRange" type="range" min="0.15" max="1" value="0.55" step="0.05">
+            <span class="value-readout" id="opacityReadout">0.55</span>
+        </div>
+
+        <div class="control-row">
+            <label for="thicknessRange">Line thickness</label>
+            <input id="thicknessRange" type="range" min="1" max="8" value="2" step="1">
+            <span class="value-readout" id="thicknessReadout">2px</span>
+        </div>
+
+        <div class="control-row">
+            <label for="angleRange">Slash angle</label>
+            <input id="angleRange" type="range" min="-60" max="60" value="-25" step="1">
+            <span class="value-readout" id="angleReadout">-25°</span>
+        </div>
+
+        <div class="control-row">
+            <label for="insetRange">Slash inset</label>
+            <input id="insetRange" type="range" min="-8" max="12" value="0" step="1">
+            <span class="value-readout" id="insetReadout">0px</span>
+        </div>
+
+        <div class="control-row">
+            <label for="lineColor">Line color</label>
+            <input id="lineColor" type="color" value="#b4c0d6">
+            <span class="value-readout" id="lineColorReadout">#b4c0d6</span>
+        </div>
+
+        <div class="control-row">
+            <label for="dropColor">Text color</label>
+            <input id="dropColor" type="color" value="#8c96ac">
+            <span class="value-readout" id="dropColorReadout">#8c96ac</span>
+        </div>
+
+        <div class="control-row--buttons">
+            <button class="primary" data-preset="current">Current</button>
+            <button data-preset="slash">Slash</button>
+            <button data-preset="subtle">Subtle</button>
+            <button data-preset="bold">Bold</button>
+            <button data-preset="ghost">Ghost</button>
+        </div>
+    </section>
+
+    <section class="results" aria-label="Roll results preview">
+        <div class="result-item">
+            <div class="result-formula">20d20++10 Preview</div>
+            <div class="result-row">
+                <span class="result-lbl">Total:</span>
+                <span class="result-value">87</span>
+            </div>
+            <div class="result-row result-row--stacked">
+                <span class="result-lbl">Rolls:</span>
+                <span class="result-rolls">
+          <span class="roll-chunk die-explode-standard">
+            <span class="roll-val die-critical-success">20</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val die-critical-success">20</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val die-critical-success">19</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">16</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">14</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">12</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">10</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">8</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">5</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">3</span>
+          </span>
+
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">2</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val die-critical-failure">1</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">-1</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">-3</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val die-critical-failure">-10</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">0</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">7</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val die-critical-success">100</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">-100</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">42</span>
+          </span>
+        </span>
+            </div>
+            <div class="result-row">
+                <span class="result-lbl">Range:</span>
+                <span class="result-range">10..200 <span class="range-label">(Abs)</span></span>
+            </div>
+        </div>
+
+        <div class="result-item">
+            <div class="result-formula">Distributed-style Preview: 10d12-3-0</div>
+            <div class="result-row">
+                <span class="result-lbl">Total:</span>
+                <span class="result-value">31</span>
+            </div>
+            <div class="result-row result-row--stacked">
+                <span class="result-lbl">Rolls:</span>
+                <span class="result-rolls">
+          <span class="roll-chunk">
+            <span class="roll-val die-critical-success">9</span>
+            <span class="visual-label">=12-3</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">7</span>
+            <span class="visual-label">=10-3</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">4</span>
+            <span class="visual-label">=7-3</span>
+          </span>
+          <span class="roll-chunk">
+            <span class="roll-val">1</span>
+            <span class="visual-label">=4-3</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">0</span>
+            <span class="visual-label">=2-3</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val die-critical-failure">0</span>
+            <span class="visual-label">=1-3</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">-2</span>
+            <span class="visual-label">=1-3</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">11</span>
+            <span class="visual-label">=14-3</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">-12</span>
+            <span class="visual-label">=-9-3</span>
+          </span>
+          <span class="roll-chunk die-dropped">
+            <span class="roll-val">100</span>
+            <span class="visual-label">=103-3</span>
+          </span>
+        </span>
+            </div>
+            <div class="result-row">
+                <span class="result-lbl">Range:</span>
+                <span class="result-range">0..90 <span class="range-label">(Limit)</span>&nbsp;&nbsp;-20..90 <span class="range-label">(Mod)</span></span>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    const root = document.documentElement;
+    const body = document.body;
+
+    const controls = {
+        styleSelect: document.getElementById('styleSelect'),
+        decorationStyle: document.getElementById('decorationStyle'),
+        opacityRange: document.getElementById('opacityRange'),
+        thicknessRange: document.getElementById('thicknessRange'),
+        angleRange: document.getElementById('angleRange'),
+        insetRange: document.getElementById('insetRange'),
+        lineColor: document.getElementById('lineColor'),
+        dropColor: document.getElementById('dropColor')
+    };
+
+    const readouts = {
+        styleReadout: document.getElementById('styleReadout'),
+        decorationReadout: document.getElementById('decorationReadout'),
+        opacityReadout: document.getElementById('opacityReadout'),
+        thicknessReadout: document.getElementById('thicknessReadout'),
+        angleReadout: document.getElementById('angleReadout'),
+        insetReadout: document.getElementById('insetReadout'),
+        lineColorReadout: document.getElementById('lineColorReadout'),
+        dropColorReadout: document.getElementById('dropColorReadout')
+    };
+
+    function hexToRgba(hex, alpha = 0.9) {
+        const value = hex.replace('#', '');
+        const r = parseInt(value.slice(0, 2), 16);
+        const g = parseInt(value.slice(2, 4), 16);
+        const b = parseInt(value.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function applyControls() {
+        body.dataset.dropStyle = controls.styleSelect.value;
+
+        root.style.setProperty('--drop-opacity', controls.opacityRange.value);
+        root.style.setProperty('--drop-line-thickness', `${controls.thicknessRange.value}px`);
+        root.style.setProperty('--drop-slash-angle', `${controls.angleRange.value}deg`);
+        root.style.setProperty('--drop-slash-inset', `${controls.insetRange.value}px`);
+        root.style.setProperty('--drop-line-color', hexToRgba(controls.lineColor.value, 0.9));
+        root.style.setProperty('--drop-color', controls.dropColor.value);
+        root.style.setProperty('--drop-decoration-style', controls.decorationStyle.value);
+
+        readouts.styleReadout.textContent = controls.styleSelect.value;
+        readouts.decorationReadout.textContent = controls.decorationStyle.value;
+        readouts.opacityReadout.textContent = controls.opacityRange.value;
+        readouts.thicknessReadout.textContent = `${controls.thicknessRange.value}px`;
+        readouts.angleReadout.textContent = `${controls.angleRange.value}°`;
+        readouts.insetReadout.textContent = `${controls.insetRange.value}px`;
+        readouts.lineColorReadout.textContent = controls.lineColor.value;
+        readouts.dropColorReadout.textContent = controls.dropColor.value;
+    }
+
+    function setPreset(name) {
+        const presets = {
+            current: {
+                style: 'line-through',
+                decoration: 'solid',
+                opacity: '0.55',
+                thickness: '2',
+                angle: '-25',
+                inset: '0',
+                line: '#b4c0d6',
+                text: '#8c96ac'
+            },
+            slash: {
+                style: 'slash',
+                decoration: 'solid',
+                opacity: '0.55',
+                thickness: '2',
+                angle: '-25',
+                inset: '-3',
+                line: '#b4c0d6',
+                text: '#8c96ac'
+            },
+            subtle: {
+                style: 'slash',
+                decoration: 'solid',
+                opacity: '0.38',
+                thickness: '1',
+                angle: '-20',
+                inset: '1',
+                line: '#8c96ac',
+                text: '#8c96ac'
+            },
+            bold: {
+                style: 'x',
+                decoration: 'solid',
+                opacity: '0.7',
+                thickness: '3',
+                angle: '-28',
+                inset: '-4',
+                line: '#d1d5db',
+                text: '#a0aec0'
+            },
+            ghost: {
+                style: 'ghost',
+                decoration: 'solid',
+                opacity: '0.28',
+                thickness: '2',
+                angle: '-25',
+                inset: '0',
+                line: '#b4c0d6',
+                text: '#8c96ac'
+            }
+        };
+
+        const preset = presets[name];
+        if (!preset) return;
+
+        controls.styleSelect.value = preset.style;
+        controls.decorationStyle.value = preset.decoration;
+        controls.opacityRange.value = preset.opacity;
+        controls.thicknessRange.value = preset.thickness;
+        controls.angleRange.value = preset.angle;
+        controls.insetRange.value = preset.inset;
+        controls.lineColor.value = preset.line;
+        controls.dropColor.value = preset.text;
+
+        applyControls();
+    }
+
+    Object.values(controls).forEach((control) => {
+        control.addEventListener('input', applyControls);
+        control.addEventListener('change', applyControls);
+    });
+
+    document.querySelectorAll('[data-preset]').forEach((button) => {
+        button.addEventListener('click', () => setPreset(button.dataset.preset));
+    });
+
+    applyControls();
+</script>
+</body>
+</html>

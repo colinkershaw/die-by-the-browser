@@ -1,11 +1,12 @@
-## To Do
+# To Do
 
-### Now
+## Now
+- Dropped rolls styling
+- Fix flaky tests
+
+## Done
+
 - Rerun "PRD 2.3 Keypad focus" to determine how we've drifted from the keyboard tab navigation we had implemented. Eg, tab is not working with hamburger menu in Onscreen Keyboard mode; space doesn't press the keys on the onscreen keyboard in that mode either... etc.
-
-
-### Done
-
 - Change the Range symbol from "-" to ".." to make negative ranges readable. eg: `10d6-8`: `Range:
 -70–-20 (Mod)  10–60 (Abs)` vs `Range:
 -70..-20 (Mod)  10..60 (Abs)`
@@ -21,7 +22,7 @@
 - Make "filtered out" rolls more subtle so the retained ones stand out more.
 
 
-### Later
+## Later
 
 - Cleanup output when running all unit and ui tests together via CLI (`npx playwright test`)
 - Methods seem to be getting insanely long param lists, eg `return - this._computeDistributionResult(formula, rollDetails, keptDetails, sides, modifier, floor, ceiling, explodeMode, sortState);` ; this needs to be looked at for possible object replacement.

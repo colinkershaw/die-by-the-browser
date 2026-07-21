@@ -764,15 +764,15 @@ test.describe('DiceApp - Advanced Mechanics', () => {
     const style = await droppedDie.evaluate((node) => {
       const computed = getComputedStyle(node);
       return {
-        opacity: computed.opacity,
-        textDecorationLine: computed.textDecorationLine,
-        textDecorationThickness: computed.textDecorationThickness
+        background: computed.background,
+        opacity: computed.opacity
       };
     });
 
+    expect(style.background).toContain('repeating-linear-gradient');
     expect(parseFloat(style.opacity)).toBeLessThanOrEqual(0.6);
-    expect(style.textDecorationLine).toContain('line-through');
-    expect(parseFloat(style.textDecorationThickness)).toBeGreaterThanOrEqual(2);
+    //expect(style.textDecorationLine).toContain('line-through');
+    //expect(parseFloat(style.textDecorationThickness)).toBeGreaterThanOrEqual(2);
   });
 
   test('should show critical success styling on nat max', async ({page}) => {
@@ -835,15 +835,25 @@ test.describe('DiceApp - Advanced Mechanics', () => {
     await expect(page.locator('.die-raw').nth(2)).toHaveText('=4+5');
   });
 
-  test('should omit distributed modifier terms on dropped dice after drop-low filtering with ceiling', async ({page}) => {
+  test('should include distributed modifier terms on dropped dice after drop-low filtering with ceiling', async ({page}) => {
     await setMockRandom(page, [0, 0.999999]);
     await page.fill('#diceInput', '2d6--1-1+4');
     await page.click('#rollBtn');
 
     await expect(page.locator('.die-cell')).toHaveCount(2);
-    await expect(page.locator('.die-cell.die-dropped .die-raw')).toHaveText('=1');
+    await expect(page.locator('.die-cell.die-dropped .die-raw')).toHaveText('=1-1');
     await expect(page.locator('.die-cell:not(.die-dropped) .die-raw')).toHaveText('=6-1');
     await expect(page.locator('.die-cell:not(.die-dropped) .die-clamp-ceiling')).toHaveCount(1);
+  });
+
+  test('should render dropped distributed game values with modifiers after filtering', async ({page}) => {
+    await setMockRandom(page, [0, 0.999999]);
+    await page.fill('#diceInput', '2d100--1-2');
+    await page.click('#rollBtn');
+
+    await expect(page.locator('.die-cell')).toHaveCount(2);
+    await expect(page.locator('.die-cell.die-dropped .die-game-val')).toHaveText('-1');
+    await expect(page.locator('.die-cell.die-dropped .die-raw')).toHaveText('=1-2');
   });
 
   test('should render aggregated math row and range labels', async ({page}) => {
@@ -932,16 +942,23 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
 
+    // Keep the loading overlay visible long enough for Playwright to observe it reliably.
+    await page.evaluate(() => {
+      DiceApp.BUSY_DEFER_MS = 250;
+    });
+
     const loading = page.locator('.loading');
     const spinner = page.locator('.spinner');
 
-    // Start expensive roll
+    // Start expensive roll and synchronize with the app entering rolling state.
     await page.fill('#diceInput', '20000d6');
+    const rollStarted = page.waitForFunction(() => DiceApp.state.isRolling === true);
     await page.press('#diceInput', 'Enter');
+    await rollStarted;
 
     // Assert spinner/overlay appears
-    await expect.poll(async () => await loading.isVisible()).toBe(true);
-    await expect.poll(async () => await spinner.isVisible()).toBe(true);
+    await expect(loading).toBeVisible();
+    await expect(spinner).toBeVisible();
 
     // Assert it eventually disappears
     await expect(loading).toBeHidden({timeout: 15000});
@@ -954,6 +971,11 @@ test.describe('DiceApp - Rolling... Spinner', () => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
     await page.goto(APP_URL);
 
+    // Keep the loading overlay visible long enough for Playwright to observe it reliably.
+    await page.evaluate(() => {
+      DiceApp.BUSY_DEFER_MS = 250;
+    });
+
     const loading = page.locator('.loading');
 
     await page.fill('#diceInput', '20000d6');
@@ -963,8 +985,10 @@ test.describe('DiceApp - Rolling... Spinner', () => {
 
     const beforeHeight = await page.locator('#results').evaluate((el) => Math.ceil(el.getBoundingClientRect().height));
 
+    const rollStarted = page.waitForFunction(() => DiceApp.state.isRolling === true);
     await page.press('#diceInput', 'Enter');
-    await expect.poll(async () => await loading.isVisible()).toBe(true);
+    await rollStarted;
+    await expect(loading).toBeVisible();
 
     const during = await page.evaluate(() => {
       const results = document.getElementById('results');

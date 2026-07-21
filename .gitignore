@@ -10,3 +10,4 @@ GeminiV*.html
 /.idea/jsLibraryMappings.xml
 /npx-direct-error.txt
 /npm-run-success.txt
+.vfox/
